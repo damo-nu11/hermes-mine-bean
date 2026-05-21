@@ -4,7 +4,7 @@ A [Hermes Agent](https://hermes-agent.nousresearch.com/) plugin for mining $BEAN
 
 Round-based on-chain deployment, five strategy presets, autonomous cron mode, signed Gitlawb audit log, Venice as default inference provider. Works inside Hermes Agent, Claude Desktop, Cursor, or any MCP-aware client.
 
-> Status: v0.3.0 live on PyPI. All eight tools work against Base mainnet today. Live broadcast is opt-in behind a one-line env unlock; dry-run is the default everywhere.
+> Status: v0.3.3 live on PyPI. All eight tools work against Base mainnet today, verified end-to-end inside a real Hermes Agent session. Live broadcast is opt-in behind a one-line env unlock; dry-run is the default everywhere.
 
 ## What MineBean is (60 seconds)
 
@@ -14,22 +14,31 @@ This plugin gives any Hermes agent the eight tools needed to read the live game,
 
 ## Install
 
-Inside Hermes Agent, install as a plugin (this is the canonical path):
+The recommended path is a dedicated Python virtualenv so Hermes, the plugin, and all blockchain dependencies stay isolated from the rest of your machine. Four lines from a fresh terminal:
 
 ```bash
+python3 -m venv ~/hermes-mine-bean-env
+source ~/hermes-mine-bean-env/bin/activate
+pip install hermes-agent hermes-mine-bean
 hermes plugins install damo-nu11/hermes-mine-bean --enable
-hermes gateway restart
 ```
 
-Hermes clones the repo into `~/.hermes/plugins/minebean/` and registers the 8 tools, the `/minebean` slash command, and the lifecycle hooks. No pip step required.
+What each step does:
 
-For the headless cron miner (the `hermes-minebean-deploy` console script) or to use the plugin as a library:
+1. Creates a dedicated venv (any path works, `~/hermes-mine-bean-env` is just a convention).
+2. Activates the venv for this shell. Every future Hermes session needs this line first; that's how Hermes picks up the plugin's Python dependencies.
+3. Installs Hermes Agent itself plus `hermes-mine-bean` (which brings `web3`, `eth-account`, and the rest of the stack into the venv).
+4. Clones the plugin into `~/.hermes/plugins/minebean/` and enables it so Hermes' directory-based loader picks it up. The plugin manifest, the eight tools, the `/minebean` slash command, and the lifecycle hooks all register at agent startup.
+
+Launch Hermes from the activated venv:
 
 ```bash
-pip install hermes-mine-bean
+hermes
 ```
 
-For MCP support (Claude Desktop, Cursor, or any other MCP client running the `hermes-minebean-mcp` server):
+Inside the chat, ask the agent something like `call the minebean_status tool` and you should get live round data from Base.
+
+If you only need the headless CLI miner (`hermes-minebean-deploy`) or the standalone MCP server (`hermes-minebean-mcp`) and not the in-Hermes plugin, just steps 1-3 are enough; you can skip the `hermes plugins install` line. For MCP add the extra at install time:
 
 ```bash
 pip install "hermes-mine-bean[mcp]"
