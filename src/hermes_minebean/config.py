@@ -20,7 +20,7 @@ DEFAULT_BASE_SEPOLIA_RPC: Final[str] = "https://sepolia.base.org"
 
 # Public mainnet RPC sits behind Cloudflare and rejects empty UAs (error 1010).
 # Always send this header on RPC calls.
-DEFAULT_USER_AGENT: Final[str] = "hermes-mine-bean/0.3.0"
+DEFAULT_USER_AGENT: Final[str] = "hermes-mine-bean/0.3.1"
 
 # ---------------------------------------------------------------------------
 # Contract addresses on Base mainnet.
