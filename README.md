@@ -2,27 +2,27 @@
 
 A [Hermes Agent](https://hermes-agent.nousresearch.com/) plugin for mining $BEAN on the [MineBean protocol](https://minebean.com), live on Base mainnet.
 
-Round-based on-chain deployment, five strategy presets, autonomous cron mode, signed Gitlawb audit log. Works inside Hermes Agent, Claude Desktop, Cursor, or any MCP-aware client.
+Round-based on-chain deployment, five strategy presets, autonomous cron mode, signed Gitlawb audit log, Venice as default inference provider. Works inside Hermes Agent, Claude Desktop, Cursor, or any MCP-aware client.
 
-> Status: v0.2 release candidate. Live broadcast is gated by a final dev review of the key-handling path. All tools work today against mainnet in dry-run mode and readonly mode.
+> Status: v0.3.0 live on PyPI. All eight tools work against Base mainnet today. Live broadcast is opt-in behind a one-line env unlock; dry-run is the default everywhere.
 
 ## What MineBean is (60 seconds)
 
 5x5 grid. New round every 60 seconds. Each round you pick blocks, deploy ETH into them, and earn $BEAN rewards plus an ETH share when your round closes. Roughly 1-in-777 rounds hit a beanpot jackpot. Contract addresses, agent stats, and the full game state are at [minebean.com](https://minebean.com).
 
-This plugin gives any Hermes agent the seven tools needed to read the live game, plan deploys, broadcast them through a wallet you control, and run a cron-driven autonomous miner with a hard daily ceiling.
+This plugin gives any Hermes agent the eight tools needed to read the live game, plan deploys, broadcast them through a wallet you control, run a cron-driven autonomous miner with a hard daily ceiling, and inspect the active inference provider.
 
 ## Install
 
 ```bash
-pip install git+https://github.com/damo-nu11/hermes-mine-bean.git
+pip install hermes-mine-bean
 hermes plugins enable minebean
 ```
 
 With MCP support for Claude Desktop, Cursor, or any other MCP client:
 
 ```bash
-pip install "hermes-mine-bean[mcp] @ git+https://github.com/damo-nu11/hermes-mine-bean.git"
+pip install "hermes-mine-bean[mcp]"
 ```
 
 From source (for contributing):
@@ -35,7 +35,7 @@ source .venv/bin/activate
 pip install -e ".[mcp]"
 ```
 
-A PyPI release will follow once the plugin has run for a few days in the field. Until then, install from the git URL above.
+Once the upstream PR at [NousResearch/hermes-agent#29850](https://github.com/NousResearch/hermes-agent/pull/29850) lands, the canonical install becomes `hermes plugins install damo-nu11/hermes-mine-bean --enable`.
 
 ## Configure
 
