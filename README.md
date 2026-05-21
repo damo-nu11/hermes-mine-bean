@@ -14,12 +14,22 @@ This plugin gives any Hermes agent the eight tools needed to read the live game,
 
 ## Install
 
+Inside Hermes Agent, install as a plugin (this is the canonical path):
+
 ```bash
-pip install hermes-mine-bean
-hermes plugins enable minebean
+hermes plugins install damo-nu11/hermes-mine-bean --enable
+hermes gateway restart
 ```
 
-With MCP support for Claude Desktop, Cursor, or any other MCP client:
+Hermes clones the repo into `~/.hermes/plugins/minebean/` and registers the 8 tools, the `/minebean` slash command, and the lifecycle hooks. No pip step required.
+
+For the headless cron miner (the `hermes-minebean-deploy` console script) or to use the plugin as a library:
+
+```bash
+pip install hermes-mine-bean
+```
+
+For MCP support (Claude Desktop, Cursor, or any other MCP client running the `hermes-minebean-mcp` server):
 
 ```bash
 pip install "hermes-mine-bean[mcp]"
@@ -35,7 +45,7 @@ source .venv/bin/activate
 pip install -e ".[mcp]"
 ```
 
-Once the upstream PR at [NousResearch/hermes-agent#29850](https://github.com/NousResearch/hermes-agent/pull/29850) lands, the canonical install becomes `hermes plugins install damo-nu11/hermes-mine-bean --enable`.
+Upstream skill registry PR is open at [NousResearch/hermes-agent#29850](https://github.com/NousResearch/hermes-agent/pull/29850); once merged, the skill becomes discoverable directly from the registry.
 
 ## Configure
 
