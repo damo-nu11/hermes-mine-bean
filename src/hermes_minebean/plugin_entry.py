@@ -20,6 +20,7 @@ import logging
 from typing import Any
 
 from . import hooks as hook_module
+from . import inference as inference_module
 from . import slash as slash_module
 from . import tools as tool_module
 from .schemas import ALL_TOOLS
@@ -38,6 +39,14 @@ def register(ctx: Any) -> None:
     Defensive shape: every ctx call is wrapped so a missing or evolving
     API surface on Hermes' side surfaces as a warning rather than a crash.
     """
+    # 0. Inference defaults. Sets HERMES_INFERENCE_PROVIDER=venice in process
+    # env when nothing is configured; respects any pre-set value (the
+    # multi-provider hook).
+    try:
+        inference_module.bootstrap_inference_defaults()
+    except Exception as exc:
+        logger.warning("inference bootstrap failed: %s", exc)
+
     # 1. Tools.
     handler_map = tool_module.HANDLERS
     for name, schema, emoji, requires_signer in ALL_TOOLS:

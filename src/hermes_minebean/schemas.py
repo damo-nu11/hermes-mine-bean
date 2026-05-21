@@ -185,6 +185,22 @@ _AUTOSTOP_SCHEMA = {
 }
 
 
+_INFERENCE_STATUS_SCHEMA = {
+    "name": "minebean_inference_status",
+    "description": (
+        "Return the active LLM inference provider Hermes is routing through. "
+        "The MineBean plugin defaults to Venice when nothing is configured "
+        "and respects HERMES_INFERENCE_PROVIDER overrides (openai, anthropic, "
+        "openrouter, ollama, lmstudio)."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    },
+}
+
+
 # Order matters for slash command help output and for the LLM's tool list view.
 ALL_TOOLS: list[tuple[str, dict, str, bool]] = [
     # (name, schema, emoji, requires_signer)
@@ -195,6 +211,7 @@ ALL_TOOLS: list[tuple[str, dict, str, bool]] = [
     ("minebean_claim", _CLAIM_SCHEMA, "", True),
     ("minebean_autostart", _AUTOSTART_SCHEMA, "", True),
     ("minebean_autostop", _AUTOSTOP_SCHEMA, "", False),
+    ("minebean_inference_status", _INFERENCE_STATUS_SCHEMA, "", False),
 ]
 
 # Just the tool names, in declared order. Convenience for tests and slash.py.

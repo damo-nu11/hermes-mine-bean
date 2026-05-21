@@ -1,6 +1,6 @@
 ---
 name: mine-bean
-version: 0.2.0
+version: 0.3.0
 description: Mine $BEAN on Base from inside Hermes Agent. Round-based on-chain deployment, five strategy presets, autonomous cron mode, signed Gitlawb audit log.
 author: MineBean
 license: MIT
@@ -66,6 +66,7 @@ MINEBEAN_MINER_ADDRESS=0x...the_address_you_want_to_observe...
 | `minebean_claim` | Claim pending winnings (dry-run default) |
 | `minebean_autostart` | Install autonomous mining cron job |
 | `minebean_autostop` | Remove the cron job |
+| `minebean_inference_status` | Active inference provider + Venice configuration state |
 
 Slash command: `/minebean <subcommand>`. Try `/minebean status` first.
 
@@ -93,9 +94,11 @@ Or use the built-in autostart: `/minebean autostart every 60s`.
 
 The cron entry enforces `MINEBEAN_MAX_DEPLOYS_PER_DAY` and exits cleanly on ceiling hit (cron doesn't error-spam).
 
-## Privacy mode
+## Inference provider
 
-Configure your Hermes runtime to route LLM inference through Venice for end-to-end no-log privacy. The skill itself runs entirely on-chain reads + writes, so privacy mode is about your conversational layer with the agent, not the mining loop.
+The plugin defaults `HERMES_INFERENCE_PROVIDER=venice` on enable, so any Hermes agent running mine-bean routes LLM calls through Venice out of the box. Set `HERMES_VENICE_API_KEY` in `~/.hermes/.env`. Set `HERMES_VENICE_NO_LOG=1` for log-free inference.
+
+The bootstrap is non-destructive: if you have already pinned `HERMES_INFERENCE_PROVIDER` to `openai`, `anthropic`, `openrouter`, `ollama`, or `lmstudio`, the plugin respects your choice. Inspect at runtime via `minebean_inference_status`.
 
 ## Safety
 

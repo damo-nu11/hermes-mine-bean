@@ -591,6 +591,20 @@ def _handler_autostop(**_: Any) -> str:
 # Keys must match the names in schemas.ALL_TOOLS.
 # ---------------------------------------------------------------------------
 
+def _handler_inference_status(**_: Any) -> str:
+    """Return the active inference provider and Venice configuration state."""
+    from . import inference as _inference
+    payload = {
+        "ok": True,
+        "provider": _inference.get_active_provider(),
+        "default_provider": _inference.DEFAULT_PROVIDER,
+        "known_providers": list(_inference.KNOWN_PROVIDERS),
+        "venice_api_key_configured": _inference.venice_configured(),
+        "venice_no_log": _inference.venice_no_log_enabled(),
+    }
+    return json.dumps(payload)
+
+
 HANDLERS: dict[str, Callable[..., str]] = {
     "minebean_status": _handler_status,
     "minebean_pending": _handler_pending,
@@ -599,4 +613,5 @@ HANDLERS: dict[str, Callable[..., str]] = {
     "minebean_claim": _handler_claim,
     "minebean_autostart": _handler_autostart,
     "minebean_autostop": _handler_autostop,
+    "minebean_inference_status": _handler_inference_status,
 }

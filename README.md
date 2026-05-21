@@ -207,17 +207,26 @@ Restart the client, then ask: *"What's the current MineBean round?"*
 
 The MCP server registers all 7 tools with full schemas. Deploy and claim default to dry-run from the MCP surface too.
 
-## Private inference (Venice)
+## Inference provider
 
-If your conversational layer needs to be log-free, route Hermes through [Venice](https://venice.ai/) using its BYOK provider config. The mining loop itself only touches public Base RPCs and the GridMining contract, so privacy is about your chat with the agent, not the mining transactions (which are on-chain and public by definition).
+The plugin defaults `HERMES_INFERENCE_PROVIDER=venice` when nothing is set, so any Hermes agent running this plugin routes its LLM calls through [Venice](https://venice.ai/) by default. Venice's `HERMES_VENICE_NO_LOG=1` flag keeps your conversation off third-party logs while the mining loop stays fully on-chain and public.
 
-Add to `~/.hermes/.env`:
+Add to `~/.hermes/.env` to enable Venice:
 
 ```bash
-HERMES_INFERENCE_PROVIDER=venice
 HERMES_VENICE_API_KEY=...
 HERMES_VENICE_NO_LOG=1
 ```
+
+**Multi-provider hook.** Already running Hermes with a different provider? The plugin respects whatever you pin. Set `HERMES_INFERENCE_PROVIDER` to any of `venice`, `openai`, `anthropic`, `openrouter`, `ollama`, or `lmstudio` and the bootstrap leaves it alone.
+
+Inspect the active provider any time via:
+
+```
+/minebean inference_status
+```
+
+or call the `minebean_inference_status` tool directly.
 
 ## Zero-install via .well-known
 
