@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-mine-bean"
+version = "0.2.0"
+description = "MineBean ($BEAN) round-based mining plugin for Hermes Agent"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "MineBean", email = "hey@minebean.com" }
+]
+keywords = ["hermes", "agent", "minebean", "bean", "base", "mining", "plugin"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+# Runtime deps for the read-only side of Step 2a.
+# eth-account ships now so the signer abstraction can compile; actual signing
+# logic lands in Step 2b once the test wallet is in place.
+dependencies = [
+  "web3>=7.0",
+  "eth-account>=0.13",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+# Install with `pip install hermes-mine-bean[mcp]` to enable the MCP server
+# for Claude Desktop, Cursor, and other MCP-compatible clients.
+mcp = [
+  "mcp[cli]>=1.0",
+]
+
+[project.entry-points."hermes_agent.plugins"]
+minebean = "hermes_minebean.plugin_entry:register_module"
+
+[project.scripts]
+hermes-minebean-deploy = "hermes_minebean.cli:cron_entry"
+hermes-minebean-mcp = "hermes_minebean.mcp_server:main"
+
+[project.urls]
+Homepage = "https://minebean.com"
+Repository = "https://github.com/damo-nu11/hermes-mine-bean"
+Issues = "https://github.com/damo-nu11/hermes-mine-bean/issues"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hermes_minebean = ["abi/*.json"]

@@ -1,0 +1,30 @@
+name: minebean
+version: 0.2.0
+description: >
+  Mine $BEAN on Base from inside Hermes Agent. Round-based deployment every 60s
+  via the on-chain GridMining contract, five strategy presets, on-chain claim,
+  and an autonomous cron mode with a daily deploy ceiling. Every round window
+  is mirrored to a signed Gitlawb audit log.
+author: MineBean
+license: MIT
+homepage: https://minebean.com
+repository: https://github.com/damo-nu11/hermes-mine-bean
+audit_log: gitlawb://did:key:z6MkwVfgaAnuypajisEkJLkVbWPiPEBwceMkGutfXpEEYHKi/minebean-rounds
+
+provides_tools:
+  - minebean_status
+  - minebean_deploy
+  - minebean_claim
+  - minebean_pending
+  - minebean_set_profile
+  - minebean_autostart
+  - minebean_autostop
+
+provides_hooks:
+  - pre_llm_call
+  - on_session_start
+
+# requires_env intentionally omitted. Plugin loads cleanly with zero env vars
+# set; tools that need a signer are gated by check_fn at registration time.
+# Users see a friendly "not yet configured" response from the deploy/claim
+# tools until MINEBEAN_DEPLOYER_KEY (eoa) or BANKR_API_KEY (bankr) is set.
