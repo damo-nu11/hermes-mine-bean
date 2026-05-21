@@ -15,14 +15,14 @@ This plugin gives any Hermes agent the seven tools needed to read the live game,
 ## Install
 
 ```bash
-pip install hermes-mine-bean
+pip install git+https://github.com/damo-nu11/hermes-mine-bean.git
 hermes plugins enable minebean
 ```
 
 With MCP support for Claude Desktop, Cursor, or any other MCP client:
 
 ```bash
-pip install "hermes-mine-bean[mcp]"
+pip install "hermes-mine-bean[mcp] @ git+https://github.com/damo-nu11/hermes-mine-bean.git"
 ```
 
 From source (for contributing):
@@ -34,6 +34,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[mcp]"
 ```
+
+A PyPI release will follow once the plugin has run for a few days in the field. Until then, install from the git URL above.
 
 ## Configure
 
@@ -239,7 +241,7 @@ Append-only, signed, and replicated across the Gitlawb network, with new round f
 
 ## Safety
 
-- `dry_run=True` is the hard default on every write path until the dev key-handling review is complete
+- `dry_run=True` is the hard default on every write path. Live broadcast requires `MINEBEAN_LIVE_BROADCAST_UNLOCKED=1`.
 - `make_signer()` raises in every non-readonly branch (the broadcast path is wired but disabled at the source)
 - `MINEBEAN_MAX_DEPLOYS_PER_DAY` blocks both the cron entry and the interactive deploy handler. The counter is `fcntl`-locked so overlapping crons cannot under-count.
 - The GridMining contract enforces one deploy per round per address. The plugin mirrors this client-side.
@@ -303,7 +305,7 @@ Bug reports, strategy formula proposals, and PRs welcome at the [issues page](ht
 
 Before opening a PR:
 - Keep tool signatures stable (third parties consume them)
-- Add a one-line note to `CHANGELOG.md` if user-visible behaviour changes
+- Note any user-visible behaviour change in the PR description
 - Live broadcast changes need a separate review pass
 
 ## Acknowledgements

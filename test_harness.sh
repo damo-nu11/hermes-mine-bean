@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # hermes-mine-bean test harness.
 #
-# Walks through Tiers 1, 3, 4, 5 of the v0.2 pre-mainnet plan. Tier 2 (which
-# requires a real private key) is deliberately excluded and waits on the dev
-# key-handling review.
+# Walks through Tiers 1, 3, 4, 5 of the v0.2 acceptance plan. Tier 2 (which
+# requires a real private key) is deliberately excluded; toggle it on locally
+# once you have reviewed signer.py and set MINEBEAN_LIVE_BROADCAST_UNLOCKED=1.
 #
 # Usage:
 #   bash test_harness.sh         # run all tiers, pause between each
@@ -29,7 +29,8 @@ if [[ ! -x "${PY}" ]]; then
     exit 1
 fi
 
-# Test wallet (founder's funded EOA, readonly use only here).
+# Test wallet (a public reference wallet, readonly use only here).
+# Override MINEBEAN_MINER_ADDRESS in your shell to test against any other address.
 export MINEBEAN_MINER_ADDRESS="${MINEBEAN_MINER_ADDRESS:-0x518f275E22947058e2D24581d97c8e059C95da1A}"
 
 # Defensive unset so we don't accidentally hit the key path even in readonly tests.
@@ -336,4 +337,4 @@ if printf "%s\n" "${RESULTS[@]}" | grep -q "|FAIL"; then
     exit 1
 fi
 echo
-echo "[harness] all checks passed (Tier 2 not run; awaits dev key-handling review)"
+echo "[harness] all checks passed (Tier 2 skipped; opt in locally with MINEBEAN_LIVE_BROADCAST_UNLOCKED=1)"

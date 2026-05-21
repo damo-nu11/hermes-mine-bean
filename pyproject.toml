@@ -21,9 +21,8 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 
-# Runtime deps for the read-only side of Step 2a.
-# eth-account ships now so the signer abstraction can compile; actual signing
-# logic lands in Step 2b once the test wallet is in place.
+# Runtime deps. web3 + eth-account drive RPC reads and local EOA signing.
+# requests is used by the JSON price feed in pricing.py.
 dependencies = [
   "web3>=7.0",
   "eth-account>=0.13",

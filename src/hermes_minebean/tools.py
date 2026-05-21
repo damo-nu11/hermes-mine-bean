@@ -1,9 +1,8 @@
 """Tool handlers for hermes-mine-bean.
 
-Step 2a: read tools (status, pending) are now real implementations against
-the on-chain GridMining contract. Write tools (deploy, claim, autostart,
-autostop) and set_profile stay as stubs until Step 2b once the test wallet
-is in place.
+Seven tool handlers covering the full MineBean lifecycle: live read paths
+(status, pending), profile persistence (set_profile), deploy planning and
+broadcast, claim, and cron autostart/autostop.
 
 Every handler returns a JSON string. On success: {"ok": true, ...payload}.
 On failure: {"ok": false, "stage": "<category>", "error": "..."}. Hermes
@@ -69,7 +68,7 @@ def _stub_response(tool_name: str, **extra: Any) -> str:
         "ok": False,
         "stage": "not_implemented",
         "tool": tool_name,
-        "note": "Implementation lands in Step 2b (test wallet pending).",
+        "note": "Tool not implemented in this build.",
     }
     body.update(extra)
     return json.dumps(body)
@@ -167,7 +166,7 @@ def _handler_pending(address: str | None = None, **_: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Still-stubbed tools. Step 2b replaces these.
+# Profile + write-path tool handlers.
 # ---------------------------------------------------------------------------
 
 def _handler_set_profile(profile: str | None = None, **_: Any) -> str:
@@ -210,7 +209,7 @@ def _handler_deploy(
     """Build a deploy plan for the current round.
 
     dry_run=True (default) returns the resolved plan without broadcasting.
-    dry_run=False is gated until the dev key-handling review completes.
+    dry_run=False is gated behind MINEBEAN_LIVE_BROADCAST_UNLOCKED=1.
 
     Resolution order for profile:
         1. Explicit profile arg
@@ -232,7 +231,7 @@ def _handler_deploy(
                 "No profile provided and none saved. Run /minebean profile <name> first.",
             )
 
-        # 2. Resolve address (read-only path; full signer wired in Step 2c).
+        # 2. Resolve address (read-only path; signer constructed lazily later).
         address = signer_module.resolve_address()
         if not address:
             return _error(
@@ -250,8 +249,8 @@ def _handler_deploy(
                 "minebean_deploy",
                 "live_broadcast_blocked",
                 "Live deploy is gated. Set MINEBEAN_LIVE_BROADCAST_UNLOCKED=1 "
-                "in ~/.hermes/.env after the dev key-handling review. Call with "
-                "dry_run=true to see the resolved plan.",
+                "in ~/.hermes/.env when you are ready to send real transactions. "
+                "Call with dry_run=true to see the resolved plan.",
             )
 
         # 4. Daily ceiling check. Informational in dry-run, blocking on live broadcast.
@@ -468,8 +467,8 @@ def _handler_claim(dry_run: bool = True, **_: Any) -> str:
     """Build a claim plan for the configured signer's pending balances.
 
     Reads pending ETH and pending BEAN, identifies which claim function(s)
-    to call, and (in dry-run) returns the plan. Live broadcast gated until
-    Step 2c.
+    to call, and (in dry-run) returns the plan. Live broadcast gated behind
+    MINEBEAN_LIVE_BROADCAST_UNLOCKED.
     """
     try:
         from . import signer as signer_module
@@ -488,8 +487,9 @@ def _handler_claim(dry_run: bool = True, **_: Any) -> str:
             return _error(
                 "minebean_claim",
                 "live_broadcast_blocked",
-                "Live claim is gated until the dev key-handling review completes. "
-                "Call with dry_run=true to see what would be claimed.",
+                "Live claim is gated. Set MINEBEAN_LIVE_BROADCAST_UNLOCKED=1 "
+                "when you are ready to send real transactions. Call with "
+                "dry_run=true to see what would be claimed.",
             )
 
         client = GridMiningClient.from_env()
@@ -524,8 +524,8 @@ def _handler_claim(dry_run: bool = True, **_: Any) -> str:
             "gas": gas,
             "would_claim": len(actions) > 0,
             "note": (
-                "Dry-run only. Live broadcast is gated until Step 2c "
-                "(post dev key-handling review)."
+                "Dry-run only. Live broadcast is gated behind "
+                "MINEBEAN_LIVE_BROADCAST_UNLOCKED=1."
             ),
         })
     except Exception as exc:

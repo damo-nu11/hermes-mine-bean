@@ -7,10 +7,10 @@ Three signer modes:
 
 Use resolve_signer_mode() and resolve_address() before constructing a real
 Signer. The factory make_signer() refuses readonly mode outright and gates
-EOA mode behind MINEBEAN_LIVE_BROADCAST_UNLOCKED until the founder explicitly
-flips it post dev-review.
+EOA mode behind MINEBEAN_LIVE_BROADCAST_UNLOCKED until the operator explicitly
+flips it.
 
-Key handling notes (per dev review v0.2):
+Key handling notes:
 - The private key lives in the EOASigner instance for the lifetime of the
   signer object. We do not stuff it in a module-level variable, but we also
   do not pretend the instance attribute is somehow ephemeral. Consumers
@@ -335,10 +335,10 @@ class EOASigner(Signer):
 # Factory + unlock gate.
 # ---------------------------------------------------------------------------
 def _live_broadcast_unlocked(env: dict[str, str] | None = None) -> bool:
-    """True if the founder has explicitly flipped the unlock env var.
+    """True if the operator has explicitly flipped the unlock env var.
 
-    Defaults to False. Set MINEBEAN_LIVE_BROADCAST_UNLOCKED=1 after the dev
-    review of key handling completes to enable EOASigner construction.
+    Defaults to False. Set MINEBEAN_LIVE_BROADCAST_UNLOCKED=1 once you have
+    reviewed signer.py and are ready to send real transactions.
     """
     env = env or os.environ
     flag = (env.get("MINEBEAN_LIVE_BROADCAST_UNLOCKED") or "").strip().lower()

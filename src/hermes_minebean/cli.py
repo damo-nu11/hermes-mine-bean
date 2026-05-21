@@ -9,9 +9,9 @@ Single attempt per invocation (cron schedules the cadence). Reuses the same
 plan-resolution path as the minebean_deploy tool handler so behaviour matches
 between interactive and autonomous modes.
 
-Live broadcast is gated until MINEBEAN_LIVE_BROADCAST_UNLOCKED=1 is set
-(post dev key-handling review). Until then, --dry-run is the hard default.
-Pass --no-dry-run to intentionally fail with a clear blocked message.
+Live broadcast is gated behind MINEBEAN_LIVE_BROADCAST_UNLOCKED=1. Until
+the operator sets that flag, --dry-run is the hard default and --no-dry-run
+fails with a clear blocked message.
 
 Nonce + retry policy:
 - Each invocation builds a fresh tx via contract.build_deploy_tx, which
@@ -50,7 +50,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         dest="dry_run",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Build plan without broadcasting. Default true (live broadcast gated until Step 2c).",
+        help="Build plan without broadcasting. Default true (live broadcast gated behind MINEBEAN_LIVE_BROADCAST_UNLOCKED).",
     )
     p.add_argument(
         "--quiet",

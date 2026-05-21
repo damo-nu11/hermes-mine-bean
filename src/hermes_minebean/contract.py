@@ -1,7 +1,7 @@
 """GridMining contract client for hermes-mine-bean.
 
-Wraps the ABI's view functions with typed Python returns. Write functions
-land in Step 2b once the test wallet is in place.
+Wraps the ABI's view functions with typed Python returns. The write-path
+tx builders are inert until the EOASigner submits them.
 
 All addresses are accepted as either lowercase hex or checksum; the client
 normalises to checksum before calling.
@@ -36,7 +36,8 @@ class GridMiningClient:
     """Thin wrapper around the GridMining contract.
 
     Stateless apart from the Web3 + contract handles. Safe to instantiate per
-    request, or to cache and reuse. Reads only in Step 2a; writes in Step 2b.
+    request, or to cache and reuse. Reads always work; writes route through
+    the EOASigner in `signer.py`.
     """
 
     def __init__(self, w3: Web3 | None = None) -> None:
@@ -342,7 +343,7 @@ class GridMiningClient:
 
     # ------------------------------------------------------------------
     # Write-path tx builders. These produce UNSIGNED transaction dicts
-    # and never broadcast. Step 2c wires the signer that consumes them.
+    # and never broadcast. The EOASigner in signer.py submits them.
     # ------------------------------------------------------------------
     def build_deploy_tx(
         self,

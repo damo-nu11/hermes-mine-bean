@@ -99,7 +99,7 @@ Configure your Hermes runtime to route LLM inference through Venice for end-to-e
 
 ## Safety
 
-- `dry_run=true` is the hard default on every deploy and claim call until the dev key-handling review completes
+- `dry_run=true` is the hard default on every deploy and claim call. Live broadcast requires `MINEBEAN_LIVE_BROADCAST_UNLOCKED=1`.
 - Daily deploy ceiling enforced via env var
 - Already-deployed-this-round guard prevents accidental double-deploys
 - Readonly mode (just `MINEBEAN_MINER_ADDRESS`, no key) lets users inspect any address without exposing keys

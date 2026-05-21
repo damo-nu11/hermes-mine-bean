@@ -34,8 +34,9 @@ Or for dry-run / readonly testing:
       }
     }
 
-Live broadcast is gated until Step 2c. dry_run defaults to true on every
-deploy/claim call regardless of how the tool is invoked.
+Live broadcast is gated behind MINEBEAN_LIVE_BROADCAST_UNLOCKED. dry_run
+defaults to true on every deploy/claim call regardless of how the tool is
+invoked.
 """
 from __future__ import annotations
 
@@ -110,7 +111,7 @@ def main() -> None:
             blocks: Optional explicit block indices (0-24). Overrides strategy.
             per_block_wei: Optional wei amount per block as a string.
             dry_run: If true (default), returns the plan without broadcasting.
-                Live broadcast is gated until Step 2c (post dev key review).
+                Live broadcast is gated behind MINEBEAN_LIVE_BROADCAST_UNLOCKED.
         """
         return _call(
             "minebean_deploy",
