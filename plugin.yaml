@@ -1,5 +1,5 @@
 name: minebean
-version: 0.3.1
+version: 0.3.2
 description: >
   Mine $BEAN on Base from inside Hermes Agent. Round-based deployment every 60s
   via the on-chain GridMining contract, five strategy presets, on-chain claim,

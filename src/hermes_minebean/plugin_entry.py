@@ -17,7 +17,7 @@ contract calls.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from . import hooks as hook_module
 from . import inference as inference_module
@@ -48,6 +48,24 @@ def register(ctx: Any) -> None:
         logger.warning("inference bootstrap failed: %s", exc)
 
     # 1. Tools.
+    #
+    # Hermes' tool registry invokes handlers with the convention
+    #     handler(args_dict, **kwargs)
+    # where args_dict is the model-supplied argument payload. Our handlers
+    # accept keyword arguments only (e.g. ``_handler_pending(address=None, **_)``)
+    # so we wrap them in a thin adapter that splats the dict into kwargs.
+    def _adapt(fn: Callable[..., str]) -> Callable[..., str]:
+        def _adapted(args: Any = None, **kwargs: Any) -> str:
+            payload: dict[str, Any] = {}
+            if isinstance(args, dict):
+                payload.update(args)
+            payload.update(kwargs)
+            return fn(**payload)
+
+        _adapted.__name__ = getattr(fn, "__name__", "_adapted")
+        _adapted.__doc__ = fn.__doc__
+        return _adapted
+
     handler_map = tool_module.HANDLERS
     for name, schema, emoji, requires_signer in ALL_TOOLS:
         handler = handler_map.get(name)
@@ -59,7 +77,7 @@ def register(ctx: Any) -> None:
                 name=name,
                 toolset="minebean",
                 schema=schema,
-                handler=handler,
+                handler=_adapt(handler),
                 check_fn=tool_module.check_configured if requires_signer else None,
                 emoji=emoji,
                 description=schema.get("description", "")[:280],
