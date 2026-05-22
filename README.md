@@ -28,7 +28,7 @@ What each step does:
 1. Creates a dedicated venv (any path works, `~/hermes-mine-bean-env` is just a convention).
 2. Activates the venv for this shell. Every future Hermes session needs this line first; that's how Hermes picks up the plugin's Python dependencies.
 3. Installs Hermes Agent itself plus `hermes-mine-bean` (which brings `web3`, `eth-account`, and the rest of the stack into the venv).
-4. Clones the plugin into `~/.hermes/plugins/minebean/` and enables it so Hermes' directory-based loader picks it up. The plugin manifest, the eight tools, the `/minebean` slash command, and the lifecycle hooks all register at agent startup.
+4. Clones the plugin into `~/.hermes/plugins/minebean/` and enables it so Hermes' directory-based loader picks it up. The plugin manifest, the ten tools, the `/minebean` slash command, and the lifecycle hooks all register at agent startup.
 
 Launch Hermes from the activated venv:
 
