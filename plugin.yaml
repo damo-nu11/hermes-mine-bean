@@ -1,5 +1,5 @@
 name: minebean
-version: 0.3.3
+version: 0.4.0
 description: >
   Mine $BEAN on Base from inside Hermes Agent. Round-based deployment every 60s
   via the on-chain GridMining contract, five strategy presets, on-chain claim,
@@ -20,6 +20,8 @@ provides_tools:
   - minebean_autostart
   - minebean_autostop
   - minebean_inference_status
+  - minebean_chat
+  - minebean_vvv_status
 
 provides_hooks:
   - pre_llm_call

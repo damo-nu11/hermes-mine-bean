@@ -592,16 +592,135 @@ def _handler_autostop(**_: Any) -> str:
 # ---------------------------------------------------------------------------
 
 def _handler_inference_status(**_: Any) -> str:
-    """Return the active inference provider and Venice configuration state."""
+    """Return the active inference provider and per-provider configured state.
+
+    v0.4 payload exposes resolved base_url, default model, and a configured-
+    map across all six providers so the agent can introspect the inference
+    posture before making a minebean_chat call.
+    """
     from . import inference as _inference
+    from . import inference_client as _client
+
+    active = _inference.get_active_provider()
+    try:
+        active_cfg = _client.get_provider_config(active)
+        active_base_url = _client._resolve_base_url(active_cfg)
+        active_default_model = active_cfg.default_model
+    except KeyError:
+        active_base_url = None
+        active_default_model = None
+
+    configured_map: dict[str, bool] = {}
+    for name in _inference.KNOWN_PROVIDERS:
+        try:
+            configured_map[name] = _client.provider_configured(name)
+        except Exception:
+            configured_map[name] = False
+
     payload = {
         "ok": True,
-        "provider": _inference.get_active_provider(),
+        "provider": active,
         "default_provider": _inference.DEFAULT_PROVIDER,
         "known_providers": list(_inference.KNOWN_PROVIDERS),
+        "active_base_url": active_base_url,
+        "active_default_model": active_default_model,
+        "configured_providers": configured_map,
         "venice_api_key_configured": _inference.venice_configured(),
         "venice_no_log": _inference.venice_no_log_enabled(),
     }
+    return json.dumps(payload)
+
+
+def _handler_chat(**kwargs: Any) -> str:
+    """Send a single prompt to the configured LLM inference provider.
+
+    Read-only side effects: makes an HTTPS call to the provider's chat
+    completion endpoint with the user's API key. Does not write env vars,
+    files, or on-chain state. Errors surface as structured JSON; the
+    agent should retry with a different provider or surface to the user.
+    """
+    from . import inference_client as _client
+
+    prompt = (kwargs.get("prompt") or "").strip()
+    if not prompt:
+        return _error("minebean_chat", "missing_prompt", "prompt is required and cannot be empty.")
+    # Server-side caps mirror schema maxLength. Defense in depth: a
+    # schema-skipping caller still can't bill the user for a 5 MB prompt.
+    if len(prompt) > 100000:
+        return _error(
+            "minebean_chat",
+            "prompt_too_long",
+            f"prompt is {len(prompt)} chars; max 100000.",
+        )
+
+    system = (kwargs.get("system") or "").strip()
+    if len(system) > 20000:
+        return _error(
+            "minebean_chat",
+            "system_too_long",
+            f"system message is {len(system)} chars; max 20000.",
+        )
+    provider_override = kwargs.get("provider")
+    model_override = kwargs.get("model")
+    max_tokens = int(kwargs.get("max_tokens") or 1024)
+    temperature = float(kwargs.get("temperature") if kwargs.get("temperature") is not None else 0.7)
+
+    messages: list[dict[str, str]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    try:
+        result = _client.chat(
+            messages=messages,
+            provider=provider_override,
+            model=model_override,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+    except KeyError as exc:
+        return _error("minebean_chat", "unknown_provider", str(exc))
+    except ValueError as exc:
+        # Missing API key for a remote provider.
+        return _error("minebean_chat", "missing_api_key", str(exc))
+    except RuntimeError as exc:
+        # openai-python missing or other client-construction failure.
+        return _error("minebean_chat", "client_unavailable", str(exc))
+    except Exception as exc:
+        # Network, auth, rate-limit, or provider-side error. Keep the
+        # exception class name in the payload so the agent has a hint.
+        return _error(
+            "minebean_chat",
+            "provider_error",
+            f"{type(exc).__name__}: {exc}",
+        )
+
+    return json.dumps(result)
+
+
+def _handler_vvv_status(**kwargs: Any) -> str:
+    """Read VVV + sVVV balances for an address, defaulting to MINEBEAN_MINER_ADDRESS."""
+    import os
+    from . import staking
+
+    address = (kwargs.get("address") or "").strip()
+    if not address:
+        address = (os.environ.get("MINEBEAN_MINER_ADDRESS") or "").strip()
+    if not address:
+        return _error(
+            "minebean_vvv_status",
+            "missing_address",
+            "No address passed and MINEBEAN_MINER_ADDRESS not set in env.",
+        )
+
+    try:
+        payload = staking.get_vvv_status(address)
+    except Exception as exc:
+        return _error(
+            "minebean_vvv_status",
+            "rpc_error",
+            f"{type(exc).__name__}: {exc}",
+        )
     return json.dumps(payload)
 
 
@@ -614,4 +733,6 @@ HANDLERS: dict[str, Callable[..., str]] = {
     "minebean_autostart": _handler_autostart,
     "minebean_autostop": _handler_autostop,
     "minebean_inference_status": _handler_inference_status,
+    "minebean_chat": _handler_chat,
+    "minebean_vvv_status": _handler_vvv_status,
 }

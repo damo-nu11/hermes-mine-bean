@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-mine-bean"
-version = "0.3.3"
+version = "0.4.0"
 description = "MineBean ($BEAN) round-based mining plugin for Hermes Agent"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,10 +23,15 @@ classifiers = [
 
 # Runtime deps. web3 + eth-account drive RPC reads and local EOA signing.
 # requests is used by the JSON price feed in pricing.py.
+# openai>=2.0 powers the inference client adapter for the minebean_chat
+# tool and any future strategy-reasoning calls (v0.4+). Venice, OpenAI,
+# Anthropic, OpenRouter, Ollama, and LM Studio all expose OpenAI-compatible
+# chat-completion endpoints, so a single client surface fits all six.
 dependencies = [
   "web3>=7.0",
   "eth-account>=0.13",
   "requests>=2.31",
+  "openai>=2.0",
 ]
 
 [project.optional-dependencies]

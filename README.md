@@ -4,13 +4,13 @@ A [Hermes Agent](https://hermes-agent.nousresearch.com/) plugin for mining $BEAN
 
 Round-based on-chain deployment, five strategy presets, autonomous cron mode, signed Gitlawb audit log, Venice as default inference provider. Works inside Hermes Agent, Claude Desktop, Cursor, or any MCP-aware client.
 
-> Status: v0.3.3 live on PyPI. All eight tools work against Base mainnet today, verified end-to-end inside a real Hermes Agent session. Live broadcast is opt-in behind a one-line env unlock; dry-run is the default everywhere.
+> Status: v0.4.0 live on PyPI. All ten tools work against Base mainnet today, verified end-to-end inside a real Hermes Agent session. Live broadcast is opt-in behind a one-line env unlock; dry-run is the default everywhere. v0.4 adds the real Venice inference client, the agent-callable `minebean_chat` tool, multi-provider abstraction across Venice, OpenAI, Anthropic, OpenRouter, Ollama, and LM Studio, plus VVV staking awareness on Base.
 
 ## What MineBean is (60 seconds)
 
 5x5 grid. New round every 60 seconds. Each round you pick blocks, deploy ETH into them, and earn $BEAN rewards plus an ETH share when your round closes. Roughly 1-in-777 rounds hit a beanpot jackpot. Contract addresses, agent stats, and the full game state are at [minebean.com](https://minebean.com).
 
-This plugin gives any Hermes agent the eight tools needed to read the live game, plan deploys, broadcast them through a wallet you control, run a cron-driven autonomous miner with a hard daily ceiling, and inspect the active inference provider.
+This plugin gives any Hermes agent the ten tools needed to read the live game, plan deploys, broadcast them through a wallet you control, run a cron-driven autonomous miner with a hard daily ceiling, route inference through Venice (or any of five other supported providers), call the model directly via `minebean_chat`, and check VVV staking balances on Base.
 
 ## Install
 
@@ -103,6 +103,9 @@ MINEBEAN_MAX_DEPLOY_WEI=10000000000000000  # 0.01 ETH cap per round
 | `minebean_claim` | Claim pending winnings | Yes |
 | `minebean_autostart` | Install autonomous mining cron job | Yes |
 | `minebean_autostop` | Remove the cron job | No |
+| `minebean_inference_status` | Active LLM inference provider, base URL, default model, per-provider configured map | No |
+| `minebean_chat` | Send a prompt to the configured LLM provider (Venice by default). Multi-provider hook: respects `HERMES_INFERENCE_PROVIDER` and `--provider` overrides | No |
+| `minebean_vvv_status` | VVV and sVVV balance for an address on Base (Venice staking awareness) | No |
 
 Slash command: `/minebean <subcommand>`. Try `/minebean status` first to confirm everything is wired correctly.
 
@@ -224,20 +227,25 @@ The `[mcp]` extra ships a `hermes-minebean-mcp` console script that speaks JSON-
 
 Restart the client, then ask: *"What's the current MineBean round?"*
 
-The MCP server registers all 7 tools with full schemas. Deploy and claim default to dry-run from the MCP surface too.
+The MCP server registers all 10 tools with full schemas. Deploy and claim default to dry-run from the MCP surface too.
 
 ## Inference provider
 
-The plugin defaults `HERMES_INFERENCE_PROVIDER=venice` when nothing is set, so any Hermes agent running this plugin routes its LLM calls through [Venice](https://venice.ai/) by default. Venice's `HERMES_VENICE_NO_LOG=1` flag keeps your conversation off third-party logs while the mining loop stays fully on-chain and public.
+The plugin defaults `HERMES_INFERENCE_PROVIDER=venice` when nothing is set, so any Hermes agent running this plugin routes its LLM calls through [Venice](https://venice.ai/) by default. Venice's no-log mode is platform-default at the API layer (prompts and responses are never persisted) while the mining loop stays fully on-chain and public.
 
 Add to `~/.hermes/.env` to enable Venice:
 
 ```bash
-HERMES_VENICE_API_KEY=...
-HERMES_VENICE_NO_LOG=1
+VENICE_API_KEY=...
 ```
 
-**Multi-provider hook.** Already running Hermes with a different provider? The plugin respects whatever you pin. Set `HERMES_INFERENCE_PROVIDER` to any of `venice`, `openai`, `anthropic`, `openrouter`, `ollama`, or `lmstudio` and the bootstrap leaves it alone.
+> v0.3 users: `HERMES_VENICE_API_KEY` is still recognised. The plugin bridges the legacy name to the canonical `VENICE_API_KEY` automatically at startup so existing configs keep working. Rename when convenient.
+
+**Multi-provider hook.** Already running Hermes with a different provider? The plugin respects whatever you pin. Set `HERMES_INFERENCE_PROVIDER` to any of `venice`, `openai`, `anthropic`, `openrouter`, `ollama`, or `lmstudio` and the bootstrap leaves it alone. v0.4 ships the real OpenAI-compatible client adapter, so calls actually route through your chosen provider, not just env-default.
+
+**Direct inference via `minebean_chat`.** v0.4 adds an agent-callable tool that sends a single prompt to the active inference provider and returns the response. Useful when the agent wants ad-hoc reasoning, a second opinion, or to route a specific call through Venice without leaving the Hermes session. Read-only — never modifies on-chain state.
+
+**VVV staking awareness.** `minebean_vvv_status` reads the caller's VVV and sVVV balances on Base (contract addresses `0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf` and `0x321b7ff75154472B18EDb199033fF4D116F340Ff`). Useful when the agent wants to know whether the user qualifies for free Venice inference via staking. Read-only.
 
 Inspect the active provider any time via:
 

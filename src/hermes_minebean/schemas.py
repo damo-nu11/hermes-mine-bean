@@ -191,12 +191,96 @@ _INFERENCE_STATUS_SCHEMA = {
         "Return the active LLM inference provider Hermes is routing through. "
         "The MineBean plugin defaults to Venice when nothing is configured "
         "and respects HERMES_INFERENCE_PROVIDER overrides (openai, anthropic, "
-        "openrouter, ollama, lmstudio)."
+        "openrouter, ollama, lmstudio). The v0.4 payload also exposes the "
+        "resolved base URL, default model, and per-provider configured state."
     ),
     "parameters": {
         "type": "object",
         "properties": {},
         "required": [],
+    },
+}
+
+
+_VVV_STATUS_SCHEMA = {
+    "name": "minebean_vvv_status",
+    "description": (
+        "Read the caller's VVV and sVVV (staked Venice token) balances on "
+        "Base mainnet. Useful for checking whether the user qualifies for "
+        "free Venice inference allowance via staking. Defaults the lookup "
+        "address to MINEBEAN_MINER_ADDRESS when no address is passed. "
+        "Read-only: this tool never broadcasts, signs, or modifies on-chain state."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "address": {
+                "type": "string",
+                "description": (
+                    "EOA address to look up balances for. Defaults to "
+                    "MINEBEAN_MINER_ADDRESS when omitted."
+                ),
+            },
+        },
+        "required": [],
+    },
+}
+
+
+_CHAT_SCHEMA = {
+    "name": "minebean_chat",
+    "description": (
+        "Send a single prompt to the configured LLM inference provider "
+        "(Venice by default) and return the response. Useful when the agent "
+        "wants ad-hoc reasoning, a second opinion, or to route a specific "
+        "call through Venice's privacy-preserving inference without leaving "
+        "the Hermes session. Respects HERMES_INFERENCE_PROVIDER overrides; "
+        "callers can also pin a provider or model per call. Does not modify "
+        "on-chain state or trigger broadcasts."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "prompt": {
+                "type": "string",
+                "description": "User-side prompt to send to the model.",
+                "maxLength": 100000,
+            },
+            "system": {
+                "type": "string",
+                "description": "Optional system message to prepend before the prompt.",
+                "maxLength": 20000,
+            },
+            "provider": {
+                "type": "string",
+                "enum": ["venice", "openai", "anthropic", "openrouter", "ollama", "lmstudio"],
+                "description": (
+                    "Override the active inference provider for this call only. "
+                    "Defaults to whatever HERMES_INFERENCE_PROVIDER resolves to "
+                    "(Venice unless the user has pinned a different provider)."
+                ),
+            },
+            "model": {
+                "type": "string",
+                "description": (
+                    "Override the model id for this call. Defaults to the "
+                    "provider's configured default (e.g. venice-uncensored for Venice)."
+                ),
+            },
+            "max_tokens": {
+                "type": "integer",
+                "description": "Max completion tokens. Defaults to 1024.",
+                "minimum": 1,
+                "maximum": 8192,
+            },
+            "temperature": {
+                "type": "number",
+                "description": "Sampling temperature. Defaults to 0.7.",
+                "minimum": 0,
+                "maximum": 2,
+            },
+        },
+        "required": ["prompt"],
     },
 }
 
@@ -212,6 +296,8 @@ ALL_TOOLS: list[tuple[str, dict, str, bool]] = [
     ("minebean_autostart", _AUTOSTART_SCHEMA, "", True),
     ("minebean_autostop", _AUTOSTOP_SCHEMA, "", False),
     ("minebean_inference_status", _INFERENCE_STATUS_SCHEMA, "", False),
+    ("minebean_chat", _CHAT_SCHEMA, "", False),
+    ("minebean_vvv_status", _VVV_STATUS_SCHEMA, "", False),
 ]
 
 # Just the tool names, in declared order. Convenience for tests and slash.py.

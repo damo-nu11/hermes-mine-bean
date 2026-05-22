@@ -7,9 +7,9 @@ the plugin nudges Venice into place only when nothing else is configured.
 The bootstrap touches process env only. It never writes to the user's
 ~/.hermes/.env file. Persistent configuration is the user's call.
 
-v0.3 ships the lightweight bootstrap. A full Venice client adapter +
-abstraction over openai/anthropic/openrouter/ollama/lmstudio is on the
-v0.4 roadmap.
+v0.4 ships the full client adapter via `inference_client`. This module
+remains the env-bootstrap entry point and a thin compatibility layer
+for callers that want a stable shape (status tool, hook context).
 """
 from __future__ import annotations
 
@@ -17,24 +17,22 @@ import logging
 import os
 from typing import Final
 
+from . import inference_client
+
 logger = logging.getLogger(__name__)
 
-DEFAULT_PROVIDER: Final[str] = "venice"
+DEFAULT_PROVIDER: Final[str] = inference_client.DEFAULT_PROVIDER
 
-# Known providers a user can pin via HERMES_INFERENCE_PROVIDER. The plugin
-# does not validate against this list (Hermes Agent itself owns the source
-# of truth) but the list informs the status tool output.
-KNOWN_PROVIDERS: Final[tuple[str, ...]] = (
-    "venice",
-    "openai",
-    "anthropic",
-    "openrouter",
-    "ollama",
-    "lmstudio",
-)
+# Known providers a user can pin via HERMES_INFERENCE_PROVIDER. Sourced
+# from the client module so the two stay in sync automatically.
+KNOWN_PROVIDERS: Final[tuple[str, ...]] = tuple(inference_client.PROVIDERS.keys())
 
 _ENV_PROVIDER_KEY: Final[str] = "HERMES_INFERENCE_PROVIDER"
-_ENV_VENICE_API_KEY: Final[str] = "HERMES_VENICE_API_KEY"
+# v0.4 migrated to Venice's canonical env var name. The legacy alias is
+# still read so users who set HERMES_VENICE_API_KEY against v0.3 don't
+# break silently; the canonical name wins if both are present.
+_ENV_VENICE_API_KEY: Final[str] = "VENICE_API_KEY"
+_ENV_VENICE_API_KEY_LEGACY: Final[str] = "HERMES_VENICE_API_KEY"
 _ENV_VENICE_NO_LOG: Final[str] = "HERMES_VENICE_NO_LOG"
 
 
@@ -42,9 +40,26 @@ def bootstrap_inference_defaults() -> str:
     """Resolve the active inference provider, defaulting to Venice.
 
     If `HERMES_INFERENCE_PROVIDER` is unset, set it to "venice" in the
-    process env. Otherwise leave the user's choice untouched. Returns the
-    active provider name.
+    process env. Otherwise leave the user's choice untouched. Also
+    bridges the v0.3 legacy `HERMES_VENICE_API_KEY` env var into the
+    canonical `VENICE_API_KEY` slot if only the legacy name is set, so
+    existing users don't lose their key on upgrade.
+
+    Returns the active provider name.
     """
+    # Legacy-to-canonical bridge. We do not overwrite an explicit
+    # VENICE_API_KEY if the user has set both.
+    if not os.environ.get(_ENV_VENICE_API_KEY) and os.environ.get(
+        _ENV_VENICE_API_KEY_LEGACY
+    ):
+        os.environ[_ENV_VENICE_API_KEY] = os.environ[_ENV_VENICE_API_KEY_LEGACY]
+        logger.info(
+            "bridged %s -> %s for v0.4 compatibility. "
+            "Rename in ~/.hermes/.env when convenient.",
+            _ENV_VENICE_API_KEY_LEGACY,
+            _ENV_VENICE_API_KEY,
+        )
+
     current = os.environ.get(_ENV_PROVIDER_KEY, "").strip().lower()
     if current:
         logger.info("inference provider already set to %s, leaving it", current)
@@ -70,11 +85,24 @@ def get_active_provider() -> str:
 
 
 def venice_configured() -> bool:
-    """True if HERMES_VENICE_API_KEY is present in env."""
-    return bool(os.environ.get(_ENV_VENICE_API_KEY))
+    """True if a Venice API key is present under the canonical or legacy var."""
+    return bool(
+        os.environ.get(_ENV_VENICE_API_KEY)
+        or os.environ.get(_ENV_VENICE_API_KEY_LEGACY)
+    )
+
+
+def provider_configured(name: str | None = None) -> bool:
+    """True if the resolved provider has its API key set in env."""
+    return inference_client.provider_configured(name)
 
 
 def venice_no_log_enabled() -> bool:
-    """True if HERMES_VENICE_NO_LOG is set to a truthy value."""
+    """True if HERMES_VENICE_NO_LOG is set to a truthy value.
+
+    Note: Venice's no-log mode is platform-default, not a per-request
+    header. This flag is retained as a documentation signal for users
+    who want to surface their privacy posture in tool output.
+    """
     raw = os.environ.get(_ENV_VENICE_NO_LOG, "").strip().lower()
     return raw in ("1", "true", "yes", "on")
