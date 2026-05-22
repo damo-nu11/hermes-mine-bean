@@ -4,8 +4,8 @@ Each strategy takes a StrategyContext (current round state + history + market
 data) and returns a DeployPlan (which blocks, how much per block, whether to
 skip).
 
-CANONICAL FORMULAS as of v0.2, supplied by the MineBean dev team. Each
-strategy uses the closed-form EV optimum:
+Canonical formulas supplied by the MineBean dev team (dev spec v0.2,
+implementation v0.4). Each strategy uses the closed-form EV optimum:
 
     X* = sqrt(K * P * T) - T
 
@@ -261,7 +261,7 @@ def _resolve_per_block(
 
 
 # ---------------------------------------------------------------------------
-# Strategies (canonical math, dev spec v0.2)
+# Strategies (canonical math per MineBean dev spec)
 # ---------------------------------------------------------------------------
 def _anti_winner(ctx: StrategyContext) -> DeployPlan:
     """Deploy to 24 blocks excluding the previous round's winning block.

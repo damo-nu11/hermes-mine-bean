@@ -155,7 +155,8 @@ def _serialize_receipt(receipt: Any) -> dict[str, Any]:
 # Abstract signer + EOA implementation.
 # ---------------------------------------------------------------------------
 class Signer:
-    """Abstract base. EOASigner is the only concrete subclass shipped in v0.2."""
+    """Abstract base. EOASigner is the only concrete subclass shipped today;
+    Bankr-managed signing is on the v0.5 roadmap."""
 
     mode: str = "abstract"
 
@@ -362,11 +363,12 @@ def make_signer(*, env: dict[str, str] | None = None, w3: Any = None) -> Signer:
     if mode == "readonly":
         raise RuntimeError(
             "Readonly mode cannot broadcast. Set MINEBEAN_DEPLOYER_KEY (eoa) "
-            "or BANKR_API_KEY (bankr) for live signing."
+            "for live signing. (Bankr-managed signing is on the v0.5 roadmap.)"
         )
     if mode == "bankr":
         raise NotImplementedError(
-            "Bankr signer not yet wired. Use eoa mode for v0.2."
+            "Bankr signer is on the v0.5 roadmap. Use eoa mode for now "
+            "by setting MINEBEAN_DEPLOYER_KEY in ~/.hermes/.env."
         )
     if mode == "eoa":
         if not _live_broadcast_unlocked(env):

@@ -1,6 +1,6 @@
 """MCP server for hermes-mine-bean.
 
-Exposes the same 7 tools to Claude Desktop, Cursor, and any MCP-compatible
+Exposes the same 10 tools to Claude Desktop, Cursor, and any MCP-compatible
 client. Re-uses the HANDLERS dict from the main package so behaviour is
 identical between Hermes plugin mode and MCP mode.
 
@@ -147,6 +147,59 @@ def main() -> None:
     def minebean_autostop() -> dict[str, Any]:
         """Return instructions to remove the autonomous mining cron job."""
         return _call("minebean_autostop")
+
+    @app.tool()
+    def minebean_inference_status() -> dict[str, Any]:
+        """Read the active LLM inference provider (Venice by default), the
+        resolved base URL, the default model, and a configured map across all
+        six supported providers (venice, openai, anthropic, openrouter, ollama,
+        lmstudio). Read-only; never broadcasts."""
+        return _call("minebean_inference_status")
+
+    @app.tool()
+    def minebean_chat(
+        prompt: str,
+        system: str | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+    ) -> dict[str, Any]:
+        """Send a prompt to the configured LLM inference provider and return
+        the response. Routes through Venice by default; respects any user-pinned
+        HERMES_INFERENCE_PROVIDER. Read-only; never modifies on-chain state.
+
+        Args:
+            prompt: User-side prompt to send. Max 100,000 characters.
+            system: Optional system message to prepend. Max 20,000 characters.
+            provider: Override the active provider for this call. One of
+                venice, openai, anthropic, openrouter, ollama, lmstudio.
+            model: Override the model id for this call. Defaults to the
+                provider's configured default (e.g. venice-uncensored).
+            max_tokens: Max completion tokens (1-8192). Defaults to 1024.
+            temperature: Sampling temperature (0-2). Defaults to 0.7.
+        """
+        return _call(
+            "minebean_chat",
+            prompt=prompt,
+            system=system,
+            provider=provider,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+    @app.tool()
+    def minebean_vvv_status(address: str | None = None) -> dict[str, Any]:
+        """Read the caller's VVV and sVVV (staked Venice token) balances on
+        Base mainnet. Useful for checking whether the user qualifies for free
+        Venice inference allowance via staking. Defaults the lookup address
+        to MINEBEAN_MINER_ADDRESS when no address is passed. Read-only.
+
+        Args:
+            address: Optional EOA address to look up balances for.
+        """
+        return _call("minebean_vvv_status", address=address)
 
     # FastMCP defaults to stdio transport, which is what Claude Desktop / Cursor expect.
     app.run()

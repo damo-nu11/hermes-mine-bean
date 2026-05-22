@@ -6,13 +6,16 @@ point in pyproject.toml. At plugin install or enable time, Hermes calls
 runtime's registration API.
 
 Registration sequence:
-1. Tools (the 7 minebean_* tools from schemas.ALL_TOOLS)
-2. Slash command (/minebean)
-3. Hooks (pre_llm_call, on_session_start)
+1. Inference bootstrap (defaults HERMES_INFERENCE_PROVIDER=venice when unset,
+   bridges legacy HERMES_VENICE_API_KEY to canonical VENICE_API_KEY)
+2. Tools (the 10 minebean_* tools from schemas.ALL_TOOLS, each wrapped
+   through `_adapt` so Hermes' (args, **kwargs) dispatch shape works)
+3. Slash command (/minebean) with all 10 subcommands
+4. Hooks (pre_llm_call, on_session_start)
 
-The CLI subcommand (hermes minebean <sub>) and the bundled SKILL.md land in
-later steps. Tool handlers are stubs until Step 2 wires the real GridMining
-contract calls.
+The CLI console script `hermes-minebean-deploy` and the MCP server
+`hermes-minebean-mcp` are exposed via [project.scripts] in pyproject.toml
+and registered independently of this Hermes plugin entry point.
 """
 from __future__ import annotations
 

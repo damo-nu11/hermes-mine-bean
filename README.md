@@ -4,7 +4,7 @@ A [Hermes Agent](https://hermes-agent.nousresearch.com/) plugin for mining $BEAN
 
 Round-based on-chain deployment, five strategy presets, autonomous cron mode, signed Gitlawb audit log, Venice as default inference provider. Works inside Hermes Agent, Claude Desktop, Cursor, or any MCP-aware client.
 
-> Status: v0.4.0 live on PyPI. All ten tools work against Base mainnet today, verified end-to-end inside a real Hermes Agent session. Live broadcast is opt-in behind a one-line env unlock; dry-run is the default everywhere. v0.4 adds the real Venice inference client, the agent-callable `minebean_chat` tool, multi-provider abstraction across Venice, OpenAI, Anthropic, OpenRouter, Ollama, and LM Studio, plus VVV staking awareness on Base.
+> Status: v0.4.1 live on PyPI. All ten tools work against Base mainnet today, verified end-to-end inside a real Hermes Agent session. Live broadcast is opt-in behind a one-line env unlock; dry-run is the default everywhere. v0.4 adds the real Venice inference client, the agent-callable `minebean_chat` tool, multi-provider abstraction across Venice, OpenAI, Anthropic, OpenRouter, Ollama, and LM Studio, plus VVV staking awareness on Base.
 
 ## What MineBean is (60 seconds)
 
@@ -65,12 +65,10 @@ Add to `~/.hermes/.env`:
 # Use a dedicated wallet you fund only for this purpose. Never your main.
 MINEBEAN_DEPLOYER_KEY=0x...
 
-# --- Or for Bankr-managed signing ---
-# BANKR_API_KEY=bk_ptr_...
-# MINEBEAN_MINER_ADDRESS=0x...
-
 # --- Or readonly inspection (no key needed) ---
 # MINEBEAN_MINER_ADDRESS=0x...
+
+# Bankr-managed signing is on the v0.5 roadmap. v0.4 ships local EOA only.
 
 # --- Safety guards (recommended) ---
 MINEBEAN_MAX_DEPLOYS_PER_DAY=100
@@ -305,7 +303,10 @@ hermes-mine-bean/
 │   ├── plugin_entry.py        Hermes register(ctx)
 │   ├── mcp_server.py          FastMCP server for Claude/Cursor
 │   ├── cli.py                 hermes-minebean-deploy console script
-│   ├── tools.py               7 tool handlers
+│   ├── tools.py               10 tool handlers
+│   ├── inference.py           inference provider bootstrap + legacy bridge
+│   ├── inference_client.py    openai-compatible client for six providers
+│   ├── staking.py             VVV + sVVV read-only balance queries
 │   ├── schemas.py             OpenAI-style schemas + presets
 │   ├── strategies.py          5 strategy resolvers
 │   ├── signer.py              eoa | bankr | readonly signer abstraction

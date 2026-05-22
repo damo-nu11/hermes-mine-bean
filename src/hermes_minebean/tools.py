@@ -1,8 +1,9 @@
 """Tool handlers for hermes-mine-bean.
 
-Seven tool handlers covering the full MineBean lifecycle: live read paths
+Ten tool handlers covering the full MineBean lifecycle: live read paths
 (status, pending), profile persistence (set_profile), deploy planning and
-broadcast, claim, and cron autostart/autostop.
+broadcast, claim, cron autostart/autostop, inference status, agent-callable
+chat through the configured LLM provider, and VVV staking balance reads.
 
 Every handler returns a JSON string. On success: {"ok": true, ...payload}.
 On failure: {"ok": false, "stage": "<category>", "error": "..."}. Hermes
@@ -59,17 +60,6 @@ def configured_address() -> str | None:
 
 def _error(tool: str, stage: str, error: str, **extra: Any) -> str:
     body = {"ok": False, "stage": stage, "tool": tool, "error": error}
-    body.update(extra)
-    return json.dumps(body)
-
-
-def _stub_response(tool_name: str, **extra: Any) -> str:
-    body = {
-        "ok": False,
-        "stage": "not_implemented",
-        "tool": tool_name,
-        "note": "Tool not implemented in this build.",
-    }
     body.update(extra)
     return json.dumps(body)
 

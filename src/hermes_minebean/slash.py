@@ -11,6 +11,9 @@ Examples:
     /minebean profile nostradamus
     /minebean autostart every 5m
     /minebean autostop
+    /minebean inference_status
+    /minebean chat What's the optimal sniper block this round?
+    /minebean vvv_status 0xabc...
 """
 from __future__ import annotations
 
@@ -29,6 +32,9 @@ _SUBCOMMANDS: dict[str, str] = {
     "claim": "minebean_claim",
     "autostart": "minebean_autostart",
     "autostop": "minebean_autostop",
+    "inference_status": "minebean_inference_status",
+    "chat": "minebean_chat",
+    "vvv_status": "minebean_vvv_status",
 }
 
 _HELP_TEXT = (
@@ -40,7 +46,10 @@ _HELP_TEXT = (
     "  /minebean deploy <profile>        deploy into the current round\n"
     "  /minebean claim                   claim pending winnings\n"
     "  /minebean autostart [schedule]    start the autonomous cron job\n"
-    "  /minebean autostop                stop the autonomous cron job"
+    "  /minebean autostop                stop the autonomous cron job\n"
+    "  /minebean inference_status        show active LLM provider + configured map\n"
+    "  /minebean chat <prompt>           send a prompt to the active LLM provider\n"
+    "  /minebean vvv_status [address]    read VVV + sVVV balances on Base"
 )
 
 
@@ -86,5 +95,10 @@ def handle_slash(args: str, context: dict[str, Any] | None = None) -> str:
         kwargs["profile"] = rest.strip()
     elif sub == "autostart" and rest:
         kwargs["schedule"] = rest.strip()
+    elif sub == "chat" and rest:
+        # Everything after `/minebean chat ` is the prompt verbatim.
+        kwargs["prompt"] = rest
+    elif sub == "vvv_status" and rest:
+        kwargs["address"] = rest.strip()
 
     return handler(**kwargs)
