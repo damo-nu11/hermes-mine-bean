@@ -14,6 +14,8 @@ This plugin gives any Hermes agent the ten tools needed to read the live game, p
 
 ## Install
 
+Requires Python 3.11 or newer.
+
 The recommended path is a dedicated Python virtualenv so Hermes, the plugin, and all blockchain dependencies stay isolated from the rest of your machine. Four lines from a fresh terminal:
 
 ```bash
@@ -105,7 +107,15 @@ MINEBEAN_MAX_DEPLOY_WEI=10000000000000000  # 0.01 ETH cap per round
 | `minebean_chat` | Send a prompt to the configured LLM provider (Venice by default). Multi-provider hook: respects `HERMES_INFERENCE_PROVIDER` and `--provider` overrides | No |
 | `minebean_vvv_status` | VVV and sVVV balance for an address on Base (Venice staking awareness) | No |
 
-Slash command: `/minebean <subcommand>`. Try `/minebean status` first to confirm everything is wired correctly.
+Slash command: `/minebean <subcommand>`. Try `/minebean status` first to confirm everything is wired correctly. Other examples:
+
+```
+/minebean pending 0xabc...
+/minebean profile sniper
+/minebean inference_status
+/minebean chat What's the optimal sniper block this round?
+/minebean vvv_status 0xabc...
+```
 
 All write paths default to `dry_run=True` while the live broadcast gate is in place. You'll see the resolved plan, gas estimate, and ceiling status without sending a transaction.
 
