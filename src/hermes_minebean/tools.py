@@ -374,14 +374,34 @@ def _handler_deploy(
             per_block = per_block_override or min_deploy
             from .strategies import DeployPlan
 
+            # Safety rail: even on the explicit-blocks override path, honour
+            # MINEBEAN_MAX_DEPLOY_WEI so a manual override can't silently
+            # outspend the user's cap. Mirrors the strategy-module clamp.
+            n_explicit = len(explicit_blocks)
+            explicit_notes = ["caller provided explicit blocks, bypassing strategy"]
+            if max_deploy_wei > 0 and per_block * n_explicit > max_deploy_wei:
+                capped_per_block = max_deploy_wei // n_explicit
+                if capped_per_block < min_deploy:
+                    return _error(
+                        "minebean_deploy",
+                        "max_deploy_too_low",
+                        f"max_deploy_wei={max_deploy_wei} too low to cover the "
+                        f"per-block minimum {min_deploy} across {n_explicit} blocks.",
+                    )
+                explicit_notes.append(
+                    f"per-block capped {per_block}->{capped_per_block} wei to "
+                    f"honour max_deploy_wei={max_deploy_wei}"
+                )
+                per_block = capped_per_block
+
             plan = DeployPlan(
                 profile=f"{chosen}+explicit_blocks",
                 should_skip=False,
                 skip_reason=None,
                 blocks=explicit_blocks,
                 per_block_wei=per_block,
-                total_wei=per_block * len(explicit_blocks),
-                notes=("caller provided explicit blocks, bypassing strategy",),
+                total_wei=per_block * n_explicit,
+                notes=tuple(explicit_notes),
             )
         else:
             plan = resolve_strategy(chosen, ctx)

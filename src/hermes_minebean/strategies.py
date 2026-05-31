@@ -222,13 +222,36 @@ def _override_or_minimum(
     blocks: tuple[int, ...],
     reason: str,
 ) -> DeployPlan:
-    """Build a minimum-deploy plan (used when T=0 or override is set)."""
+    """Build a minimum-deploy plan (used when T=0 or override is set).
+
+    The X* branch caps total spend at max_deploy_wei via _clamp_total_deploy.
+    This branch must honour the same cap, otherwise a per-block override (or
+    the grossed-up minimum) times the block count can silently exceed it. If
+    the cap is below the contract per-block floor across n blocks it cannot be
+    satisfied, so we skip rather than deploy under-minimum.
+    """
     n = len(blocks)
     if ctx.per_block_wei_override:
         per_block = ctx.per_block_wei_override
     else:
         per_block = _eth_to_wei(_min_total_deploy_eth(n) / n)
-    return _plan(profile, blocks, per_block, reason)
+
+    notes = [reason]
+    if ctx.max_deploy_wei > 0 and per_block * n > ctx.max_deploy_wei:
+        capped_per_block = ctx.max_deploy_wei // n
+        if capped_per_block < ctx.min_deploy_wei:
+            return _skip(
+                profile,
+                f"max_deploy_wei={ctx.max_deploy_wei} too low to cover the "
+                f"per-block minimum {ctx.min_deploy_wei} across {n} blocks",
+            )
+        notes.append(
+            f"per-block capped {per_block}->{capped_per_block} wei to honour "
+            f"max_deploy_wei={ctx.max_deploy_wei}"
+        )
+        per_block = capped_per_block
+
+    return _plan(profile, blocks, per_block, *notes)
 
 
 def _resolve_per_block(

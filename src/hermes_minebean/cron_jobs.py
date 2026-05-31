@@ -61,7 +61,12 @@ fi
 # Absolute path to the console script captured at autostart time.
 # Cron's stripped PATH doesn't include the venv's bin/ dir so we can't
 # rely on the bare name resolving.
-exec "{deploy_bin}"{profile_arg} --quiet
+#
+# --no-dry-run flips the CLI off its dry-run default so the cron actually
+# broadcasts. Broadcast is still hard-gated behind
+# MINEBEAN_LIVE_BROADCAST_UNLOCKED=1 in the .env sourced above, so an
+# operator who hasn't opted in still gets a safe no-op (live_broadcast_blocked).
+exec "{deploy_bin}"{profile_arg} --no-dry-run --quiet
 """
 
 
@@ -112,9 +117,12 @@ def _hermes_on_path() -> bool:
 def _hermes_command_for_autostart(wrapper: Path, schedule: str) -> list[str]:
     """Build the argv for `hermes cron add ...`.
 
-    Hermes CLI shape (verified against installed version):
-        hermes cron add --name NAME --no-agent --script PATH SCHEDULE
-    `schedule` is a positional argument and MUST come after the flags.
+    Hermes CLI shape:
+        hermes cron add --name NAME --no-agent --script SCRIPT SCHEDULE
+    `--script` must be RELATIVE to ~/.hermes/scripts/ (Hermes rejects an
+    absolute or home-relative path with "Script path must be relative to
+    ~/.hermes/scripts/"). We pass the basename only; the wrapper already
+    lives in that directory. `schedule` is positional and comes last.
     """
     return [
         "hermes",
@@ -124,7 +132,7 @@ def _hermes_command_for_autostart(wrapper: Path, schedule: str) -> list[str]:
         JOB_NAME,
         "--no-agent",
         "--script",
-        str(wrapper),
+        wrapper.name,
         schedule,
     ]
 
@@ -162,13 +170,25 @@ def autostart(
     cmd = _hermes_command_for_autostart(wrapper, schedule)
     suggested = " ".join(_quote(arg) for arg in cmd)
 
+    broadcast_unlocked = (
+        os.environ.get("MINEBEAN_LIVE_BROADCAST_UNLOCKED", "").strip() == "1"
+    )
+
     result: dict[str, Any] = {
         "wrapper": str(wrapper),
         "schedule": schedule,
         "profile": chosen_profile,
         "daily_cap": daily_cap or state.get_daily_ceiling(),
         "suggested_command": suggested,
+        "live_broadcast_unlocked": broadcast_unlocked,
     }
+
+    if not broadcast_unlocked:
+        result["broadcast_warning"] = (
+            "MINEBEAN_LIVE_BROADCAST_UNLOCKED is not set to 1. The cron will "
+            "run but every fire will no-op (live_broadcast_blocked) until you "
+            "add MINEBEAN_LIVE_BROADCAST_UNLOCKED=1 to ~/.hermes/.env."
+        )
 
     if _hermes_on_path():
         try:
