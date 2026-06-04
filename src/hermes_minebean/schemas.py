@@ -85,9 +85,10 @@ _DEPLOY_SCHEMA = {
 _CLAIM_SCHEMA = {
     "name": "minebean_claim",
     "description": (
-        "Claim any pending $BEAN winnings for the configured signer wallet. "
-        "Reads the pending balance first and short-circuits if zero. Requires "
-        "a signer."
+        "Claim pending winnings for the configured signer wallet. Reads pending "
+        "ETH and $BEAN first and short-circuits if zero. By default claims both; "
+        "set eth_only to claim ETH only. Requires a signer. Live broadcast is "
+        "gated behind MINEBEAN_LIVE_BROADCAST_UNLOCKED."
     ),
     "parameters": {
         "type": "object",
@@ -99,6 +100,22 @@ _CLAIM_SCHEMA = {
                     "Defaults to true while live broadcast is gated."
                 ),
                 "default": True,
+            },
+            "eth_only": {
+                "type": "boolean",
+                "description": (
+                    "If true, only claim pending ETH and never $BEAN. The "
+                    "autonomous cron auto-claim sets this."
+                ),
+                "default": False,
+            },
+            "min_claim_wei": {
+                "type": "string",
+                "description": (
+                    "Pending-ETH floor as a wei-denominated string. Below this "
+                    "the ETH claim is skipped so gas does not eat dust. Defaults "
+                    "to MINEBEAN_MIN_CLAIM_WEI env, otherwise 0 (no floor)."
+                ),
             },
         },
         "required": [],
@@ -167,6 +184,15 @@ _AUTOSTART_SCHEMA = {
                     "Maximum deploys per UTC day. Defaults to 100 or the value "
                     "of MINEBEAN_MAX_DEPLOYS_PER_DAY."
                 ),
+            },
+            "claim": {
+                "type": "boolean",
+                "description": (
+                    "If true, each cron fire also auto-claims pending ETH after "
+                    "the deploy (eth_only), under the same broadcast gate and the "
+                    "MINEBEAN_MIN_CLAIM_WEI floor."
+                ),
+                "default": False,
             },
         },
         "required": [],

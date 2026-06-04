@@ -27,12 +27,46 @@ Nonce + retry policy:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
+import os
+import tempfile
 from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _acquire_run_lock() -> Any | None:
+    """Take a non-blocking, per-signer file lock for the duration of the run.
+
+    Cron schedules a fixed cadence, but a single deploy can outlast its slot
+    (receipt wait + RPC backoff). Without a lock the next tick fires while the
+    prior one still holds an unconfirmed nonce, so both rebuild against the same
+    `pending` count and collide. The lock makes an overlapping tick a clean
+    no-op instead of a nonce clash.
+
+    Returns the held file object on success, or None if another run holds it.
+    The OS releases the lock when this process exits, so a crashed run never
+    leaves a stale lock behind (unlike a plain lockfile-exists check).
+    """
+    import fcntl
+
+    key = (
+        os.environ.get("MINEBEAN_MINER_ADDRESS")
+        or os.environ.get("MINEBEAN_DEPLOYER_KEY")
+        or "default"
+    ).lower()
+    digest = hashlib.sha256(key.encode()).hexdigest()[:16]
+    lock_path = os.path.join(tempfile.gettempdir(), f"hermes-minebean-{digest}.lock")
+    fh = open(lock_path, "w")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return None
+    return fh
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -68,6 +102,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Override per-block deploy amount (wei). Default is contract MIN_DEPLOY.",
     )
+    p.add_argument(
+        "--claim",
+        action="store_true",
+        help="After the deploy fire, also claim pending ETH (eth_only). Same broadcast gate and dry-run default as the deploy.",
+    )
+    p.add_argument(
+        "--min-claim-wei",
+        dest="min_claim_wei",
+        default=None,
+        help="Pending-ETH floor (wei) below which the auto-claim is skipped. Defaults to MINEBEAN_MIN_CLAIM_WEI env.",
+    )
     return p.parse_args(argv)
 
 
@@ -86,6 +131,26 @@ def cron_entry(argv: list[str] | None = None) -> int:
         130 = SIGINT (user hit Ctrl-C)
     """
     args = _parse_args(argv)
+
+    # Overlap guard: if a previous tick is still in-flight (e.g. waiting on a
+    # receipt), skip this one cleanly rather than colliding on the nonce. Dry
+    # runs never broadcast, so they don't take the lock. Disable with
+    # MINEBEAN_DISABLE_RUN_LOCK=1.
+    run_lock = None
+    if not args.dry_run and os.environ.get("MINEBEAN_DISABLE_RUN_LOCK") != "1":
+        run_lock = _acquire_run_lock()
+        if run_lock is None:
+            _emit(
+                {
+                    "ok": True,
+                    "stage": "overlap_skip",
+                    "tool": "hermes-minebean-deploy",
+                    "reason": "previous deploy still in-flight; skipping this tick",
+                    "ts_utc": datetime.now(timezone.utc).isoformat(),
+                },
+                args.quiet,
+            )
+            return 0  # overlap is expected under fast cadence, not an error
 
     try:
         from . import signer as signer_module
@@ -146,17 +211,39 @@ def cron_entry(argv: list[str] | None = None) -> int:
         # double-counts. This block intentionally left empty so the cron
         # entry doesn't burn quota on sign_failed / broadcast_failed paths.
 
-        # 5. Annotate result, emit, exit.
+        # 5. Annotate result, emit.
         result["ts_utc"] = datetime.now(timezone.utc).isoformat()
         result["cron_mode"] = True
         _emit(result, args.quiet)
 
-        # Success or expected-skip both return 0 (cron should not error-spam).
-        if result.get("ok"):
-            return 0
-        if result.get("stage") in ("ceiling", "skip", "live_broadcast_blocked"):
-            return 0
-        return 1
+        # Success or expected-skip both count as ok (cron should not error-spam).
+        deploy_ok = bool(result.get("ok")) or result.get("stage") in (
+            "ceiling",
+            "skip",
+            "live_broadcast_blocked",
+        )
+
+        # 6. Optional auto-claim of pending ETH. Runs AFTER the deploy so the
+        # deploy's submit_tx(wait=True) has already settled its nonce before we
+        # build the claim tx. eth_only keeps autonomous mode from ever moving
+        # BEAN. Same broadcast gate and dry-run default as the deploy.
+        claim_ok = True
+        if args.claim:
+            claim = HANDLERS["minebean_claim"]
+            claim_raw = claim(
+                dry_run=args.dry_run,
+                eth_only=True,
+                min_claim_wei=args.min_claim_wei,
+            )
+            claim_result = json.loads(claim_raw)
+            claim_result["ts_utc"] = datetime.now(timezone.utc).isoformat()
+            claim_result["cron_mode"] = True
+            _emit(claim_result, args.quiet)
+            claim_ok = bool(claim_result.get("ok")) or (
+                claim_result.get("stage") == "live_broadcast_blocked"
+            )
+
+        return 0 if (deploy_ok and claim_ok) else 1
 
     except KeyboardInterrupt:
         return 130

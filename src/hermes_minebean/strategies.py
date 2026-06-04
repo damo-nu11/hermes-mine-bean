@@ -594,3 +594,60 @@ def resolve_strategy(profile: str, ctx: StrategyContext) -> DeployPlan:
         )
     handler = _HANDLERS[key]
     return handler(ctx)
+
+
+def enforce_max_deploy_cap(
+    plan: DeployPlan,
+    max_deploy_wei: int,
+    min_deploy_wei: int,
+) -> DeployPlan:
+    """Final safety rail: guarantee plan.per_block_wei * len(blocks) <= max_deploy_wei.
+
+    Most strategy paths already clamp via _clamp_total_deploy / _override_or_minimum.
+    beanpot-hunter is the exception: its campaign-sizing branch returns
+    max(campaign_total, formula_total) and only the formula side is clamped, so
+    when 0.5%-of-vault exceeds the cap the campaign side can land above
+    max_deploy_wei. This rail re-clamps any resolved plan so no strategy path can
+    outspend the cap.
+
+    If the cap can't cover the per-block minimum across the plan's blocks, the
+    plan is converted to a skip rather than deploying under-minimum.
+
+    max_deploy_wei <= 0 means "no cap" and the plan is returned unchanged.
+    """
+    if (
+        max_deploy_wei <= 0
+        or plan.should_skip
+        or not plan.blocks
+        or plan.per_block_wei * len(plan.blocks) <= max_deploy_wei
+    ):
+        return plan
+
+    n_blocks = len(plan.blocks)
+    capped_per_block = max_deploy_wei // n_blocks
+    if capped_per_block < min_deploy_wei:
+        return DeployPlan(
+            profile=plan.profile,
+            should_skip=True,
+            skip_reason=(
+                f"max_deploy_wei={max_deploy_wei} too low to cover the "
+                f"per-block minimum {min_deploy_wei} across {n_blocks} blocks."
+            ),
+            blocks=(),
+            per_block_wei=0,
+            total_wei=0,
+            notes=plan.notes,
+        )
+    return DeployPlan(
+        profile=plan.profile,
+        should_skip=plan.should_skip,
+        skip_reason=plan.skip_reason,
+        blocks=plan.blocks,
+        per_block_wei=capped_per_block,
+        total_wei=capped_per_block * n_blocks,
+        notes=tuple(plan.notes)
+        + (
+            f"total capped to honour max_deploy_wei={max_deploy_wei}: "
+            f"per-block {plan.per_block_wei}->{capped_per_block} wei",
+        ),
+    )

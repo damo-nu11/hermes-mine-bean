@@ -102,6 +102,24 @@ def is_configured() -> bool:
     return resolve_signer_mode() is not None and resolve_address() is not None
 
 
+DEFAULT_RECEIPT_TIMEOUT = 120.0
+
+
+def _resolve_receipt_timeout(env: dict[str, str] | None = None) -> float:
+    """Receipt-wait budget in seconds, from MINEBEAN_RECEIPT_TIMEOUT.
+
+    Lower it so cron jobs on a tight cadence fail fast (and let the next tick
+    rebuild a fresh-nonce tx) instead of blocking on the default, which under
+    load lets the next tick collide with a still-pending nonce. Falls back to
+    the default on missing/garbage input.
+    """
+    env = env if env is not None else os.environ
+    try:
+        return float(env.get("MINEBEAN_RECEIPT_TIMEOUT", DEFAULT_RECEIPT_TIMEOUT))
+    except (TypeError, ValueError):
+        return DEFAULT_RECEIPT_TIMEOUT
+
+
 def _truncate_address(addr: str) -> str:
     """Return 0xABCD…WXYZ form of a checksum address for audit logging."""
     if not addr or len(addr) < 10:
@@ -294,9 +312,16 @@ class EOASigner(Signer):
                 "receipt": None,
             }
 
-        # 3. Wait for receipt and verify status == 1.
+        # 3. Wait for receipt and verify status == 1. The wait budget is
+        #    configurable so cron jobs on a tight cadence can fail fast (and
+        #    let the next tick rebuild a fresh-nonce tx) instead of blocking on
+        #    the default 120s, which under load lets the next tick collide with
+        #    a still-pending nonce.
+        receipt_timeout = _resolve_receipt_timeout()
         try:
-            receipt = self._w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            receipt = self._w3.eth.wait_for_transaction_receipt(
+                tx_hash, timeout=receipt_timeout
+            )
         except Exception as exc:
             logger.debug("wait_for_transaction_receipt failed: %s", type(exc).__name__)
             return {

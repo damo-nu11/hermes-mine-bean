@@ -77,6 +77,10 @@ MINEBEAN_MAX_DEPLOYS_PER_DAY=100
 MINEBEAN_PER_BLOCK_WEI=2500000000000
 MINEBEAN_MAX_DEPLOY_WEI=10000000000000000  # 0.01 ETH cap per round
 
+# --- Cron tuning (autonomous mode) ---
+# MINEBEAN_RECEIPT_TIMEOUT=120   # seconds to wait for a receipt; lower it for fast cadences
+# MINEBEAN_DISABLE_RUN_LOCK=1    # opt out of the per-signer overlap lock (not recommended)
+
 # --- Strategy data feeds (defaults work for most users) ---
 # MINEBEAN_BEAN_PRICE_ETH=                       # offline override, otherwise fetched from api.minebean.com
 # MINEBEAN_PRICE_URL=                            # custom price endpoint
@@ -199,6 +203,30 @@ The cron entry runs `hermes-minebean-deploy`, which:
 - Exits `130` on SIGINT
 - Emits one JSON line per run for log scraping
 
+**The Hermes gateway must be running.** Cron jobs only fire while the Hermes
+gateway daemon is up. If you add a job and nothing happens, confirm the gateway
+process is running first; a stopped gateway is the most common reason a schedule
+never triggers. The job stays registered, but no tick fires until the gateway is
+back up.
+
+**`--no-agent` means zero LLM cost.** The `--no-agent` flag tells Hermes to run
+the deploy script directly without spinning up an agent turn. `hermes-minebean-deploy`
+is pure math (the EV strategy resolves block selection and sizing locally) and
+never calls an inference provider, so autonomous mining incurs **no per-deploy
+LLM cost**. Inference is only used in interactive chat, not on the cron path.
+
+**Where the logs go.** Each run prints one JSON line to stdout, which the Hermes
+gateway captures under `~/.hermes/cron/output/<job-id>`. Tail that file to watch
+deploys. Pass `--quiet` to suppress the JSON line (e.g. if you scrape receipts
+elsewhere); the exit code still reflects success/failure.
+
+**Overlap protection.** A single deploy can outlast its cron slot while it waits
+on a receipt. The cron entry takes a per-signer lock so an overlapping tick exits
+cleanly as `stage="overlap_skip"` instead of colliding on the nonce. Tune the
+receipt wait with `MINEBEAN_RECEIPT_TIMEOUT` (seconds, default `120`) so tight
+cadences fail fast and let the next tick rebuild a fresh-nonce tx. Set
+`MINEBEAN_DISABLE_RUN_LOCK=1` to opt out of the lock.
+
 Stop with `/minebean autostop` or `hermes cron remove <name>`.
 
 ## MCP server
@@ -288,9 +316,20 @@ Append-only, signed, and replicated across the Gitlawb network, with new round f
 - `dry_run=True` is the hard default on every write path. Live broadcast requires `MINEBEAN_LIVE_BROADCAST_UNLOCKED=1`.
 - `make_signer()` raises in every non-readonly branch (the broadcast path is wired but disabled at the source)
 - `MINEBEAN_MAX_DEPLOYS_PER_DAY` blocks both the cron entry and the interactive deploy handler. The counter is `fcntl`-locked so overlapping crons cannot under-count.
+- `MINEBEAN_MAX_DEPLOY_WEI` caps total per-round spend. Every resolved plan is re-clamped through `enforce_max_deploy_cap` before broadcast, so no strategy path (including beanpot-hunter's campaign sizing) can outspend the cap. If the cap can't cover the per-block minimum, the deploy skips rather than under-funding.
+- A still-running deploy holds a per-signer `fcntl` lock, so an overlapping cron tick exits as `overlap_skip` instead of colliding on the nonce. `MINEBEAN_RECEIPT_TIMEOUT` bounds the receipt wait.
 - The GridMining contract enforces one deploy per round per address. The plugin mirrors this client-side.
 - Cron wrapper script is `chmod 700` (user-only rwx) because it sources `~/.hermes/.env`.
 - Readonly mode (just `MINEBEAN_MINER_ADDRESS`, no key) lets you inspect any address without putting a key anywhere.
+
+## Tests
+
+```bash
+pip install -e ".[dev]"
+pytest -q
+```
+
+`tests/` locks the financial and cron-safety invariants: no resolved plan can outspend `MINEBEAN_MAX_DEPLOY_WEI` (across every strategy, including the beanpot-hunter campaign branch), the overlap lock blocks concurrent runs, and the receipt-wait timeout stays env-configurable. CI runs them on every push via `.github/workflows/tests.yml`.
 
 ## Network
 

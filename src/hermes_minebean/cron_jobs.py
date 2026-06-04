@@ -66,7 +66,11 @@ fi
 # broadcasts. Broadcast is still hard-gated behind
 # MINEBEAN_LIVE_BROADCAST_UNLOCKED=1 in the .env sourced above, so an
 # operator who hasn't opted in still gets a safe no-op (live_broadcast_blocked).
-exec "{deploy_bin}"{profile_arg} --no-dry-run --quiet
+#
+# {claim_arg} (when present) adds --claim, so each fire also claims pending
+# ETH after the deploy. It honours the same broadcast gate, and skips dust
+# below MINEBEAN_MIN_CLAIM_WEI from the .env sourced above.
+exec "{deploy_bin}"{profile_arg}{claim_arg} --no-dry-run --quiet
 """
 
 
@@ -91,15 +95,21 @@ def _resolve_deploy_bin() -> str:
     return "hermes-minebean-deploy"
 
 
-def write_wrapper(profile: str | None = None) -> Path:
+def write_wrapper(profile: str | None = None, claim: bool = False) -> Path:
     """Write the cron wrapper script and chmod it executable.
 
     Returns the path. Overwrites any existing wrapper at the same location.
+
+    claim=True appends --claim so each cron fire also auto-claims pending ETH
+    after the deploy. The claim path is gated by the same
+    MINEBEAN_LIVE_BROADCAST_UNLOCKED flag and the MINEBEAN_MIN_CLAIM_WEI floor.
     """
     profile_arg = f" --profile {profile}" if profile else ""
+    claim_arg = " --claim" if claim else ""
     deploy_bin = _resolve_deploy_bin()
     body = _WRAPPER_TEMPLATE.format(
         profile_arg=profile_arg,
+        claim_arg=claim_arg,
         deploy_bin=deploy_bin,
     )
     path = wrapper_path()
@@ -155,6 +165,7 @@ def autostart(
     schedule: str = "every 60s",
     profile: str | None = None,
     daily_cap: int | None = None,
+    claim: bool = False,
 ) -> dict[str, Any]:
     """Provision the cron job.
 
@@ -164,9 +175,11 @@ def autostart(
     daily_cap is informational here; the real cap lives in
     MINEBEAN_MAX_DEPLOYS_PER_DAY and is enforced by the cron entry on every
     fire. Passing it just echoes back the value so callers can confirm.
+
+    claim=True writes a wrapper that also auto-claims pending ETH each fire.
     """
     chosen_profile = (profile or "").strip().lower() or state.get_profile()
-    wrapper = write_wrapper(profile=chosen_profile)
+    wrapper = write_wrapper(profile=chosen_profile, claim=claim)
     cmd = _hermes_command_for_autostart(wrapper, schedule)
     suggested = " ".join(_quote(arg) for arg in cmd)
 
@@ -179,6 +192,7 @@ def autostart(
         "schedule": schedule,
         "profile": chosen_profile,
         "daily_cap": daily_cap or state.get_daily_ceiling(),
+        "auto_claim_eth": claim,
         "suggested_command": suggested,
         "live_broadcast_unlocked": broadcast_unlocked,
     }

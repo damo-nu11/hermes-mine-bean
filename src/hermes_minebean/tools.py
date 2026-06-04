@@ -404,7 +404,15 @@ def _handler_deploy(
                 notes=tuple(explicit_notes),
             )
         else:
+            from .strategies import enforce_max_deploy_cap
+
             plan = resolve_strategy(chosen, ctx)
+
+            # Final safety rail: enforce MINEBEAN_MAX_DEPLOY_WEI across every
+            # strategy path. beanpot-hunter's campaign-sizing branch is not
+            # clamped at source, so re-clamp the resolved plan here. This
+            # guarantees no strategy can outspend the user's cap.
+            plan = enforce_max_deploy_cap(plan, max_deploy_wei, min_deploy)
 
         # 9. Estimate gas if the plan would broadcast (skip if already deployed).
         gas_estimate: int | None = None
@@ -473,12 +481,58 @@ def _handler_deploy(
         return _error("minebean_deploy", "rpc_error", f"{type(exc).__name__}: {exc}")
 
 
-def _handler_claim(dry_run: bool = True, **_: Any) -> str:
-    """Build a claim plan for the configured signer's pending balances.
+def _broadcast_one_claim(
+    signer: Any,
+    build_fn: Callable[[str], dict[str, Any]],
+    address: str,
+    action: str,
+) -> dict[str, Any]:
+    """Build, sign, and submit a single claim tx. Returns the signer result.
+
+    Each call builds a fresh tx so the nonce is pulled from 'pending' at
+    submit time. submit_tx(wait=True) blocks on the receipt, so chaining two
+    claims (ETH then BEAN) in one handler call stays nonce-safe: the second
+    build only runs after the first is mined. No nonce caching, no auto-retry,
+    same reorg-safe policy as the deploy path.
+    """
+    try:
+        tx = build_fn(address)
+        result = signer.submit_tx(tx, wait=True)
+        result["action"] = action
+        return result
+    except Exception as exc:
+        return {
+            "ok": False,
+            "action": action,
+            "stage": "broadcast_exception",
+            "error": f"{type(exc).__name__}: {exc}",
+            "tx_hash": None,
+            "receipt": None,
+        }
+
+
+def _handler_claim(
+    dry_run: bool = True,
+    eth_only: bool = False,
+    min_claim_wei: str | int | None = None,
+    **_: Any,
+) -> str:
+    """Build (and in live mode, broadcast) a claim of pending balances.
 
     Reads pending ETH and pending BEAN, identifies which claim function(s)
-    to call, and (in dry-run) returns the plan. Live broadcast gated behind
-    MINEBEAN_LIVE_BROADCAST_UNLOCKED.
+    to call, and either returns the plan (dry-run) or broadcasts it (live).
+
+    Live broadcast mirrors the deploy handler: gated behind
+    MINEBEAN_LIVE_BROADCAST_UNLOCKED=1, fresh tx per call, wait=True, and any
+    action whose gas estimate failed is skipped (it would revert). Claims do
+    NOT touch the daily deploy ceiling counter.
+
+    eth_only: when True, never build a claimBEAN tx. The cron auto-claim sets
+    this so autonomous mode only ever moves ETH winnings.
+
+    min_claim_wei: pending-ETH floor below which claimETH is skipped (gas
+    would otherwise eat dust winnings). None reads MINEBEAN_MIN_CLAIM_WEI,
+    defaulting to 0 (no floor).
     """
     try:
         from . import signer as signer_module
@@ -493,7 +547,9 @@ def _handler_claim(dry_run: bool = True, **_: Any) -> str:
                 "BANKR_API_KEY + MINEBEAN_MINER_ADDRESS (bankr).",
             )
 
-        if not dry_run:
+        # Live broadcast gate, same soft gate as deploy. Bail before any RPC
+        # reads for a live request that can't broadcast.
+        if not dry_run and not signer_module._live_broadcast_unlocked():
             return _error(
                 "minebean_claim",
                 "live_broadcast_blocked",
@@ -501,6 +557,23 @@ def _handler_claim(dry_run: bool = True, **_: Any) -> str:
                 "when you are ready to send real transactions. Call with "
                 "dry_run=true to see what would be claimed.",
             )
+
+        # Resolve the ETH claim floor (caller arg > env > 0).
+        if min_claim_wei is not None:
+            try:
+                claim_floor = int(min_claim_wei)
+            except (TypeError, ValueError):
+                return _error(
+                    "minebean_claim",
+                    "invalid_min_claim_wei",
+                    f"min_claim_wei must parse to int, got {min_claim_wei!r}",
+                )
+        else:
+            env_floor = (os.environ.get("MINEBEAN_MIN_CLAIM_WEI") or "").strip()
+            try:
+                claim_floor = int(env_floor) if env_floor else 0
+            except ValueError:
+                claim_floor = 0
 
         client = GridMiningClient.from_env()
         total = client.total_pending(address)
@@ -511,32 +584,67 @@ def _handler_claim(dry_run: bool = True, **_: Any) -> str:
 
         actions: list[str] = []
         gas: dict[str, Any] = {}
+        notes: list[str] = []
+
         if pending_eth > 0:
-            actions.append("claimETH")
-            try:
-                gas["claim_eth_gas"] = client.estimate_claim_eth_gas(address)
-            except Exception as exc:
-                gas["claim_eth_error"] = f"{type(exc).__name__}: {exc}"
+            if pending_eth < claim_floor:
+                notes.append(
+                    f"pending_eth {pending_eth} below MINEBEAN_MIN_CLAIM_WEI "
+                    f"{claim_floor}, skipping claimETH"
+                )
+            else:
+                actions.append("claimETH")
+                try:
+                    gas["claim_eth_gas"] = client.estimate_claim_eth_gas(address)
+                except Exception as exc:
+                    gas["claim_eth_error"] = f"{type(exc).__name__}: {exc}"
+
         if pending_bean > 0:
-            actions.append("claimBEAN")
-            try:
-                gas["claim_bean_gas"] = client.estimate_claim_bean_gas(address)
-            except Exception as exc:
-                gas["claim_bean_error"] = f"{type(exc).__name__}: {exc}"
+            if eth_only:
+                notes.append("eth_only set, skipping claimBEAN")
+            else:
+                actions.append("claimBEAN")
+                try:
+                    gas["claim_bean_gas"] = client.estimate_claim_bean_gas(address)
+                except Exception as exc:
+                    gas["claim_bean_error"] = f"{type(exc).__name__}: {exc}"
+
+        # Broadcast (live mode only). Skip any action whose gas estimate
+        # failed, mirroring the deploy handler's gas_error guard.
+        broadcast: dict[str, Any] | None = None
+        if not dry_run and actions:
+            signer = signer_module.make_signer(w3=client._w3)
+            results: list[dict[str, Any]] = []
+            if "claimETH" in actions and "claim_eth_error" not in gas:
+                results.append(
+                    _broadcast_one_claim(
+                        signer, client.build_claim_eth_tx, address, "claimETH"
+                    )
+                )
+            if "claimBEAN" in actions and "claim_bean_error" not in gas:
+                results.append(
+                    _broadcast_one_claim(
+                        signer, client.build_claim_bean_tx, address, "claimBEAN"
+                    )
+                )
+            broadcast = {
+                "ok": bool(results) and all(r.get("ok") for r in results),
+                "results": results,
+            }
 
         return json.dumps({
             "ok": True,
             "tool": "minebean_claim",
-            "dry_run": True,
+            "dry_run": dry_run,
             "address": address,
             "pending": total,
             "actions": actions,
             "gas": gas,
+            "notes": notes,
+            "eth_only": eth_only,
+            "min_claim_wei": str(claim_floor),
             "would_claim": len(actions) > 0,
-            "note": (
-                "Dry-run only. Live broadcast is gated behind "
-                "MINEBEAN_LIVE_BROADCAST_UNLOCKED=1."
-            ),
+            "broadcast": broadcast,
         })
     except Exception as exc:
         return _error("minebean_claim", "rpc_error", f"{type(exc).__name__}: {exc}")
@@ -545,6 +653,7 @@ def _handler_claim(dry_run: bool = True, **_: Any) -> str:
 def _handler_autostart(
     schedule: str | None = None,
     daily_cap: int | None = None,
+    claim: bool = False,
     **_: Any,
 ) -> str:
     """Install the autonomous mining cron job.
@@ -554,6 +663,9 @@ def _handler_autostart(
 
     Requires a broadcast-capable signer (eoa or bankr). Readonly mode is
     rejected since the cron would just spin forever in dry-run otherwise.
+
+    claim=True writes a wrapper that also auto-claims pending ETH each fire,
+    under the same broadcast gate and the MINEBEAN_MIN_CLAIM_WEI floor.
     """
     try:
         from . import cron_jobs as _cron
@@ -571,6 +683,7 @@ def _handler_autostart(
         result = _cron.autostart(
             schedule=(schedule or "every 60s"),
             daily_cap=daily_cap,
+            claim=bool(claim),
         )
         return json.dumps({
             "ok": True,
